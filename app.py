@@ -5,6 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+AI_EXCELLENT_THRESHOLD = 10.0
+AI_NEUTRAL_THRESHOLD = 0.0
+
 class Asset:
     def __init__(self, ticker: str, name: str, asset_type: str):
         self.ticker = ticker.upper()
@@ -433,9 +436,9 @@ with tab4:
             if common_start >= common_end:
                 st.error("Brak wspólnego zakresu dat między wybranymi instrumentami.")
             else:
-                combined_index = pd.Index(sorted(set().union(*[
-                    df.loc[common_start:common_end].index for df in simulation_data.values()
-                ])))
+                combined_index = pd.DatetimeIndex([])
+                for df in simulation_data.values():
+                    combined_index = combined_index.union(pd.DatetimeIndex(df.loc[common_start:common_end].index))
 
                 if simulation_mode == "Jednorazowa wpłata":
                     one_time_amount = st.number_input("Kwota jednorazowej wpłaty:", min_value=100.0, value=5000.0, step=100.0)
@@ -463,9 +466,9 @@ with tab4:
                     portfolio_value = pd.Series(0.0, index=combined_index)
 
                     for tx_date in transaction_dates:
-                        global_exec = combined_index[combined_index >= tx_date]
-                        if len(global_exec) > 0:
-                            invested_delta.loc[global_exec[0]] += transaction_amount
+                        execution_candidates = combined_index[combined_index >= tx_date]
+                        if len(execution_candidates) > 0:
+                            invested_delta.loc[execution_candidates[0]] += transaction_amount
 
                     for ticker, df_ticker in simulation_data.items():
                         close_series = df_ticker['Close'].loc[common_start:common_end].reindex(combined_index).ffill()
@@ -475,7 +478,9 @@ with tab4:
                             candidates = close_series.loc[close_series.index >= tx_date].dropna()
                             if len(candidates) > 0:
                                 exec_date = candidates.index[0]
-                                shares_delta.loc[exec_date] += (transaction_amount * allocation_per_asset) / candidates.iloc[0]
+                                exec_price = candidates.iloc[0]
+                                if exec_price > 0:
+                                    shares_delta.loc[exec_date] += (transaction_amount * allocation_per_asset) / exec_price
 
                         cumulative_shares = shares_delta.cumsum()
                         portfolio_value = portfolio_value.add(cumulative_shares * close_series, fill_value=0.0)
@@ -492,7 +497,9 @@ with tab4:
                         total_invested = result_df["Kapitał wpłacony"].iloc[-1]
                         final_value = result_df["Wartość portfela"].iloc[-1]
                         total_return_pct = result_df["Stopa zwrotu %"].iloc[-1]
-                        max_drawdown = ((result_df["Wartość portfela"] / result_df["Wartość portfela"].cummax()) - 1).min() * 100
+                        rolling_max = result_df["Wartość portfela"].cummax().replace(0, np.nan)
+                        drawdown_series = (result_df["Wartość portfela"] / rolling_max) - 1
+                        max_drawdown = drawdown_series.min(skipna=True) * 100 if drawdown_series.notna().any() else 0.0
 
                         sc1, sc2, sc3, sc4 = st.columns(4)
                         sc1.metric("Łącznie wpłacono", f"{total_invested:.2f}")
@@ -503,12 +510,14 @@ with tab4:
                         asset_rank = []
                         for ticker, df_ticker in simulation_data.items():
                             close_sub = df_ticker['Close'].loc[common_start:common_end]
-                            asset_rank.append((display_options[ticker], ((close_sub.iloc[-1] / close_sub.iloc[0]) - 1) * 100))
+                            first_price = close_sub.iloc[0]
+                            if first_price > 0:
+                                asset_rank.append((display_options[ticker], ((close_sub.iloc[-1] / first_price) - 1) * 100))
                         best_asset = max(asset_rank, key=lambda x: x[1]) if asset_rank else ("Brak", 0)
 
-                        if total_return_pct >= 10:
+                        if total_return_pct >= AI_EXCELLENT_THRESHOLD:
                             ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>, a najsilniejszym składnikiem było <b>{best_asset[0]}</b> ({best_asset[1]:.2f}%)."
-                        elif total_return_pct >= 0:
+                        elif total_return_pct >= AI_NEUTRAL_THRESHOLD:
                             ai_sim_text = f"🟡 <b>Ocena AI:</b> Wynik dodatni, ale umiarkowany. Portfel zakończył symulację na poziomie <b>{total_return_pct:.2f}%</b>. Rozważ wydłużenie horyzontu lub zmianę koszyka."
                         else:
                             ai_sim_text = f"🔴 <b>Ocena AI:</b> Symulacja zakończyła się stratą <b>{total_return_pct:.2f}%</b>. Największe ryzyko było widoczne przy obsunięciu <b>{max_drawdown:.2f}%</b>."
