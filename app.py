@@ -37,18 +37,14 @@ class FinancialEngine:
             "dino": ("DNP.WA", "Dino Polska SA", "DNP.DE", "DNP.DE", [("GPW20", "4.9%")])
         }
 
-    # Nowa obsługa pobierania po konkretnych datach
     def get_data(self, ticker: str, period: str = None, start: datetime = None, end: datetime = None) -> pd.DataFrame:
         if not ticker:
             return pd.DataFrame()
         try:
             ticker_data = yf.Ticker(ticker)
-            
             if start and end:
-                # Jeśli użytkownik podał daty, korzystamy z nich
                 hist = ticker_data.history(start=start, end=end)
             else:
-                # W przeciwnym razie korzystamy z gotowych okresów
                 hist = ticker_data.history(period=period if period else "1y")
                 
             if hist.empty:
@@ -70,7 +66,7 @@ class FinancialEngine:
         
         return annual_return, annual_volatility, sharpe
 
-st.set_page_config(page_title="Globalny Analizator ETF v10", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Globalny Analizator ETF v10.1", layout="wide", page_icon="📈")
 
 st.markdown("""
     <style>
@@ -138,9 +134,6 @@ with st.sidebar:
 ticker_options = list(st.session_state.portfolio.keys())
 display_options = {t: st.session_state.portfolio[t].name for t in ticker_options}
 
-# ==========================================
-# 🕒 NOWY PANEL: KONFIGURACJA CZASU
-# ==========================================
 st.markdown("<h4 style='color: #3b82f6;'>⏳ Wybierz tryb zakresu analitycznego</h4>", unsafe_allow_html=True)
 time_mode = st.radio(
     "Metoda wprowadzania:", 
@@ -149,7 +142,6 @@ time_mode = st.radio(
     label_visibility="collapsed"
 )
 
-# Zmienne do przechowywania wybranego czasu
 selected_period = None
 start_date = None
 end_date = None
@@ -167,7 +159,6 @@ if time_mode == "📅 Standardowe z rynku (styl XTB)":
         "5Y (Ostatnie 5 lat)": "5y",
         "MAX (Pełna dostępna historia)": "max"
     }
-    # Rozłożenie opcji w poziomie (selectbox dla przejrzystości)
     chosen_xtb = st.selectbox("Wybierz predefiniowany okres XTB:", list(xtb_opts.keys()))
     selected_period = xtb_opts[chosen_xtb]
 
@@ -183,7 +174,6 @@ else:
     col_s, col_e = st.columns(2)
     with col_s:
         d_start = st.date_input("Od: Data początkowa", value=datetime.today() - timedelta(days=365))
-        # time_input z parametrem step=1 wymusza dokładność co do sekundy
         t_start = st.time_input("Od: Czas (godz:min:sek)", value=time(9, 0, 0), step=1)
     with col_e:
         d_end = st.date_input("Do: Data końcowa", value=datetime.today())
@@ -194,9 +184,6 @@ else:
 
 st.divider()
 
-# ==========================================
-# GŁÓWNY INTERFEJS - ZAKŁADKI
-# ==========================================
 tab1, tab2, tab3 = st.tabs(["📊 Analiza Szczegółowa Aktywa", "⚖️ Porównywarka ETF / Akcji", "ℹ️ Instrukcja"])
 
 with tab1:
@@ -205,11 +192,11 @@ with tab1:
     if selected_ticker:
         asset = st.session_state.portfolio[selected_ticker]
         with st.spinner("Przetwarzanie danych..."):
-            # Przekazujemy wszystkie możliwe parametry czasowe
             data = st.session_state.engine.get_data(asset.ticker, period=selected_period, start=start_date, end=end_date)
             
-        if data.empty:
-            st.error(f"⚠️ Brak danych w API dla symbolu {asset.ticker} we wskazanym okresie. Wybierz szerszy zakres.")
+        # ZABEZPIECZENIE PRZED ZBYT MAŁĄ ILOŚCIĄ DANYCH (Musi być min. 2 dni żeby wyliczyć różnicę!)
+        if data.empty or len(data) < 2:
+            st.error(f"⚠️ Brak wystarczających danych historycznych (znaleziono {len(data)} dni sesyjnych) dla symbolu {asset.ticker} we wskazanym okresie. Wybierz szerszy zakres na pasku czasu (np. pomiń dni wolne od handlu).")
         else:
             ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(data)
             total_return = data['Cumulative_Return'].iloc[-1] * 100
@@ -232,7 +219,8 @@ with tab1:
             axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='#10b981', linewidth=2)
             axes[1, 0].set_title("Skumulowany zysk (%)", color='#f8fafc')
             
-            sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'], color="#f59e0b")
+            # ZABEZPIECZENIE BOXPLOTA (.dropna() wymusza ominięcie pustych wyników przed przekazaniem do Seaborn)
+            sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'].dropna(), color="#f59e0b")
             axes[1, 1].set_title("Boxplot zmienności", color='#f8fafc')
             
             for ax in axes.flat:
@@ -265,7 +253,8 @@ with tab2:
             
             for idx, t in enumerate(selected_to_compare):
                 df = st.session_state.engine.get_data(t, period=selected_period, start=start_date, end=end_date)
-                if not df.empty:
+                # Zabezpieczenie porównywarki dla min. 2 dni
+                if not df.empty and len(df) >= 2:
                     ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(df)
                     total_return = df['Cumulative_Return'].iloc[-1] * 100
                     
@@ -280,6 +269,8 @@ with tab2:
                         "Ryzyko / Zmienność (%)": round(ann_vol * 100, 2),
                         "Wskaźnik Sharpe'a": round(sharpe, 2)
                     })
+                elif len(df) < 2:
+                    st.warning(f"⚠️ Zignorowano '{t}' na wykresie z powodu zbyt małej ilości danych rynkowych we wskazanym okresie (minimum to 2 dni).")
             
             if comparison_rows:
                 info_text = f"Zakres danych: {selected_period}" if selected_period else f"Od: {start_date.strftime('%Y-%m-%d %H:%M:%S')} Do: {end_date.strftime('%Y-%m-%d %H:%M:%S')}"
@@ -307,7 +298,7 @@ with tab2:
                             f"* **Dla zwrotu absolutnego:** Najbardziej opłacił się **{best_by_return['Ticker']}** z zyskiem na poziomie **{best_by_return['Całkowity zysk (%)']}%**.\n"
                             f"* **Dla optymalnego ryzyka:** Najbardziej efektywny jest **{best_by_sharpe['Ticker']}** (Wskaźnik Sharpe'a: **{best_by_sharpe['Wskaźnik Sharpe\'a']}**), ponieważ generuje najlepszy stosunek zysku do wahań kursu (zmienność wyniosła tylko {best_by_sharpe['Ryzyko / Zmienność (%)']}% w porównaniu do {best_by_return['Ryzyko / Zmienność (%)']}% u konkurenta).")
             else:
-                st.error("Brak danych historycznych do porównania.")
+                st.error("Brak danych historycznych do porównania po przefiltrowaniu.")
     else:
         st.info("👆 Wybierz aktywa z listy wielokrotnego wyboru, aby wygenerować analizę porównawczą.")
 
