@@ -61,20 +61,32 @@ class FinancialEngine:
         
         return annual_return, annual_volatility, sharpe
 
-# ==========================================
-# KONFIGURACJA STRONY I ZMIENNE SESYJNE
-# ==========================================
-st.set_page_config(page_title="Globalny Analizator ETF v9.0", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Globalny Analizator ETF v9.5", layout="wide", page_icon="📈")
 
-# Wstrzyknięcie niestandardowego stylu CSS dla większej czytelności
 st.markdown("""
     <style>
-    .stMetric { background-color: #f0f2f6; padding: 15px; border-radius: 10px; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; background-color: transparent; border-radius: 5px 5px 0px 0px; gap: 1px; padding-top: 10px; padding-bottom: 10px; }
-    .stTabs [aria-selected="true"] { background-color: #e6e9ef; font-weight: bold; }
+    .stApp { background-color: #0b0f17; color: #e2e8f0; }
+    .stMetric { background-color: #111827; padding: 15px; border-radius: 10px; border: 1px solid #1f2937; }
+    div[data-testid="stMetricValue"] { color: #3b82f6; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; background-color: #0b0f17; }
+    .stTabs [data-baseweb="tab"] { height: 45px; color: #94a3b8; background-color: #111827; border-radius: 5px 5px 0px 0px; padding: 10px 20px; border: 1px solid #1f2937; }
+    .stTabs [aria-selected="true"] { background-color: #1f2937; color: #f8fafc; font-weight: bold; border-bottom: 2px solid #3b82f6; }
+    div[data-testid="stSidebar"] { background-color: #070a0f; border-right: 1px solid #1f2937; }
+    .stDataFrame { background-color: #111827; border-radius: 10px; }
+    h1, h2, h3 { color: #f8fafc !important; }
     </style>
     """, unsafe_allow_html=True)
+
+sns.set_theme(style="darkgrid", rc={
+    "axes.facecolor": "#111827",
+    "figure.facecolor": "#0b0f17",
+    "text.color": "#f8fafc",
+    "axes.labelcolor": "#94a3b8",
+    "xtick.color": "#94a3b8",
+    "ytick.color": "#94a3b8",
+    "grid.color": "#1f2937",
+    "grid.linestyle": "--"
+})
 
 st.title("📈 Interaktywny Dashboard Finansowy i Analiza Ryzyka")
 st.caption("Zaawansowane mapowanie rynkowe | Analiza portfelowa | Porównywarka ETF")
@@ -88,12 +100,8 @@ if 'portfolio' not in st.session_state:
         "EUNL.DE": Asset("EUNL.DE", "EUNL.DE - iShares Core MSCI World (Europa)", "ETF")
     }
 
-# ==========================================
-# PANEL BOCZNY - ZARZĄDZANIE BAZĄ
-# ==========================================
 with st.sidebar:
     st.header("🗂️ Zarządzanie Bazą Danych")
-    
     st.subheader("1. Inteligentne Wyszukiwanie")
     search_query = st.text_input("🔍 Wpisz firmę (np. tesla, microsoft, dino):").lower().strip()
     if search_query:
@@ -106,7 +114,7 @@ with st.sidebar:
                 st.session_state.portfolio[etf_ticker] = Asset(etf_ticker, f"{etf_ticker} - Fundusz ETF (Udział: {weight})", "ETF")
             st.success(f"✅ Dodano powiązania dla: {name_usa}")
         else:
-            st.warning("⚠️ Brak firmy w demonstracyjnej bazie top 100.")
+            st.warning("⚠️ Brak firmy w bazie demonstracyjnej.")
 
     st.divider()
     st.subheader("2. Dodawanie Ręczne")
@@ -118,22 +126,17 @@ with st.sidebar:
             st.session_state.portfolio[new_ticker] = Asset(new_ticker, f"{new_ticker} - {new_name}", new_type)
             st.success(f"Dodano {new_ticker}")
 
-# ==========================================
-# GŁÓWNY INTERFEJS - ZAKŁADKI (TABS)
-# ==========================================
 ticker_options = list(st.session_state.portfolio.keys())
 display_options = {t: st.session_state.portfolio[t].name for t in ticker_options}
 
-# Ujednolicone ramy czasowe z nowymi opcjami
 col_time1, col_time2 = st.columns([1, 4])
 with col_time1:
-    st.markdown("#### ⏳ Okres analizy:")
+    st.markdown("<div style='padding-top:15px; font-weight:bold;'>⏳ Okres analizy:</div>", unsafe_allow_html=True)
 with col_time2:
     period = st.select_slider("", options=["1mo", "3mo", "6mo", "1y", "3y", "5y", "10y", "max"], value="1y")
 
 tab1, tab2, tab3 = st.tabs(["📊 Analiza Szczegółowa Aktywa", "⚖️ Porównywarka ETF / Akcji", "ℹ️ Instrukcja"])
 
-# --- ZAKŁADKA 1: ANALIZA POJEDYNCZA ---
 with tab1:
     selected_ticker = st.selectbox("🎯 Wybierz instrument do analizy:", options=ticker_options, format_func=lambda x: display_options[x])
     
@@ -148,35 +151,38 @@ with tab1:
             ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(data)
             total_return = data['Cumulative_Return'].iloc[-1] * 100
             
-            # Kafelki metryk
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Całkowity zysk", f"{total_return:.2f}%")
             c2.metric("Oczekiwana stopa zwrotu", f"{ann_ret*100:.2f}%")
             c3.metric("Ryzyko (Zmienność)", f"{ann_vol*100:.2f}%")
             c4.metric("Wskaźnik Sharpe'a", f"{sharpe:.2f}")
             
-            sns.set_theme(style="darkgrid")
             fig, axes = plt.subplots(2, 2, figsize=(15, 9))
+            fig.patch.set_facecolor('#0b0f17')
             
-            axes[0, 0].plot(data.index, data['Close'], color='dodgerblue', linewidth=2)
-            axes[0, 0].set_title(f"Kurs Historyczny: {asset.ticker}")
+            axes[0, 0].plot(data.index, data['Close'], color='#3b82f6', linewidth=2)
+            axes[0, 0].set_title(f"Kurs Historyczny: {asset.ticker}", color='#f8fafc')
             
-            sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="purple", bins=30)
-            axes[0, 1].set_title("Rozkład stóp zwrotu")
+            sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="#8b5cf6", bins=30)
+            axes[0, 1].set_title("Rozkład stóp zwrotu", color='#f8fafc')
             
-            axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='forestgreen', linewidth=2)
-            axes[1, 0].set_title("Skumulowany zysk (%)")
+            axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='#10b981', linewidth=2)
+            axes[1, 0].set_title("Skumulowany zysk (%)", color='#f8fafc')
             
-            sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'], color="orange")
-            axes[1, 1].set_title("Boxplot zmienności")
+            sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'], color="#f59e0b")
+            axes[1, 1].set_title("Boxplot zmienności", color='#f8fafc')
+            
+            for ax in axes.flat:
+                ax.set_facecolor('#111827')
+                ax.xaxis.label.set_color('#94a3b8')
+                ax.yaxis.label.set_color('#94a3b8')
+                ax.tick_params(colors='#94a3b8')
             
             plt.tight_layout()
             st.pyplot(fig)
 
-# --- ZAKŁADKA 2: PORÓWNYWARKA ---
 with tab2:
     st.markdown("### ⚖️ Zestawienie wydajności aktywów")
-    st.write("Wybierz od 2 do 5 instrumentów, aby porównać ich skumulowany zysk procentowy w wybranym okresie.")
     
     selected_to_compare = st.multiselect(
         "Wybierz aktywa do porównania:", 
@@ -187,29 +193,60 @@ with tab2:
     
     if len(selected_to_compare) > 0:
         with st.spinner("Pobieranie i normalizacja danych..."):
-            plt.figure(figsize=(14, 6))
-            sns.set_theme(style="darkgrid")
+            fig_comp, ax_comp = plt.subplots(figsize=(14, 6))
+            fig_comp.patch.set_facecolor('#0b0f17')
+            ax_comp.set_facecolor('#111827')
             
-            comparison_data_exists = False
-            for t in selected_to_compare:
+            comparison_rows = []
+            palette = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"]
+            
+            for idx, t in enumerate(selected_to_compare):
                 df = st.session_state.engine.get_data(t, period)
                 if not df.empty:
-                    df['Cumulative_Return'] = (1 + df['Close'].pct_change()).cumprod() - 1
-                    plt.plot(df.index, df['Cumulative_Return'] * 100, label=f"{t} ({st.session_state.portfolio[t].asset_type})", linewidth=2)
-                    comparison_data_exists = True
+                    ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(df)
+                    total_return = df['Cumulative_Return'].iloc[-1] * 100
+                    
+                    color = palette[idx % len(palette)]
+                    ax_comp.plot(df.index, df['Cumulative_Return'] * 100, label=f"{t}", linewidth=2, color=color)
+                    
+                    comparison_rows.append({
+                        "Ticker": t,
+                        "Typ": st.session_state.portfolio[t].asset_type,
+                        "Całkowity zysk (%)": round(total_return, 2),
+                        "Roczny zwrot (%)": round(ann_ret * 100, 2),
+                        "Ryzyko / Zmienność (%)": round(ann_vol * 100, 2),
+                        "Wskaźnik Sharpe'a": round(sharpe, 2)
+                    })
             
-            if comparison_data_exists:
-                plt.title(f"Porównanie skumulowanego zysku (%) w okresie: {period}", fontsize=14, fontweight='bold')
-                plt.ylabel("Zysk (%)")
-                plt.xlabel("Data")
-                plt.legend(loc="upper left")
-                st.pyplot(plt)
+            if comparison_rows:
+                ax_comp.set_title(f"Porównanie skumulowanego zysku (%) w okresie: {period}", fontsize=12, fontweight='bold', color='#f8fafc')
+                ax_comp.set_ylabel("Zysk (%)", color='#94a3b8')
+                ax_comp.set_xlabel("Data", color='#94a3b8')
+                ax_comp.tick_params(colors='#94a3b8')
+                legend = ax_comp.legend(loc="upper left", facecolor='#111827', edgecolor='#1f2937')
+                plt.setp(legend.get_texts(), color='#f8fafc')
+                st.pyplot(fig_comp)
+                
+                comp_df = pd.DataFrame(comparison_rows).set_index("Ticker")
+                st.markdown("#### 📊 Porównawcze zestawienie liczbowe")
+                st.dataframe(comp_df, use_container_width=True)
+                
+                st.markdown("#### 🧠 Teoretyczny werdykt inwestycyjny (Analiza Ryzyka i Efektywności)")
+                
+                best_by_sharpe = max(comparison_rows, key=lambda x: x["Wskaźnik Sharpe'a"])
+                best_by_return = max(comparison_rows, key=lambda x: x["Całkowity zysk (%)"])
+                
+                if best_by_sharpe["Ticker"] == best_by_return["Ticker"]:
+                    st.success(f"🏆 **Zdecydowany faworyt:** Teoretycznie najbardziej opłacalną inwestycją w okresie **{period}** jest **{best_by_sharpe['Ticker']}**. Instrument ten osiągnął zarówno najwyższy całkowity zwrot ({best_by_sharpe['Całkowity zysk (%)']}%), jak i najwyższą efektywność skorygowaną o ryzyko (Wskaźnik Sharpe'a: {best_by_sharpe['Wskaźnik Sharpe\'a']}).")
+                else:
+                    st.info(f"⚖️ **Werdykt zależny od strategii:**\n\n"
+                            f"* **Dla zwrotu absolutnego:** Najbardziej opłacił się **{best_by_return['Ticker']}** z zyskiem na poziomie **{best_by_return['Całkowity zysk (%)']}%**.\n"
+                            f"* **Dla optymalnego ryzyka:** Najbardziej efektywny jest **{best_by_sharpe['Ticker']}** (Wskaźnik Sharpe'a: **{best_by_sharpe['Wskaźnik Sharpe\'a']}**), ponieważ generuje najlepszy stosunek zysku do wahań kursu (zmienność wyniosła tylko {best_by_sharpe['Ryzyko / Zmienność (%)']}% w porównaniu do {best_by_return['Ryzyko / Zmienność (%)']}% u konkurenta).")
             else:
-                st.error("Brak danych historycznych do porównania dla wybranych tickerów.")
+                st.error("Brak danych historycznych do porównania.")
     else:
-        st.info("👆 Wybierz co najmniej jedno aktywo, aby wygenerować wykres porównawczy.")
+        st.info("👆 Wybierz aktywa z listy wielokrotnego wyboru, aby wygenerować analizę porównawczą.")
 
-# --- ZAKŁADKA 3: INSTRUKCJA ---
 with tab3:
     st.markdown("""
     ### 👋 Witaj w Analizatorze Finansowym!
