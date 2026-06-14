@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from datetime import datetime, time, timedelta
 
 class Asset:
     def __init__(self, ticker: str, name: str, asset_type: str):
@@ -36,12 +37,20 @@ class FinancialEngine:
             "dino": ("DNP.WA", "Dino Polska SA", "DNP.DE", "DNP.DE", [("GPW20", "4.9%")])
         }
 
-    def get_data(self, ticker: str, period: str) -> pd.DataFrame:
+    # Nowa obsługa pobierania po konkretnych datach
+    def get_data(self, ticker: str, period: str = None, start: datetime = None, end: datetime = None) -> pd.DataFrame:
         if not ticker:
             return pd.DataFrame()
         try:
             ticker_data = yf.Ticker(ticker)
-            hist = ticker_data.history(period=period)
+            
+            if start and end:
+                # Jeśli użytkownik podał daty, korzystamy z nich
+                hist = ticker_data.history(start=start, end=end)
+            else:
+                # W przeciwnym razie korzystamy z gotowych okresów
+                hist = ticker_data.history(period=period if period else "1y")
+                
             if hist.empty:
                 return pd.DataFrame()
             return pd.DataFrame(hist['Close'])
@@ -61,7 +70,7 @@ class FinancialEngine:
         
         return annual_return, annual_volatility, sharpe
 
-st.set_page_config(page_title="Globalny Analizator ETF v9.5", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Globalny Analizator ETF v10", layout="wide", page_icon="📈")
 
 st.markdown("""
     <style>
@@ -129,12 +138,65 @@ with st.sidebar:
 ticker_options = list(st.session_state.portfolio.keys())
 display_options = {t: st.session_state.portfolio[t].name for t in ticker_options}
 
-col_time1, col_time2 = st.columns([1, 4])
-with col_time1:
-    st.markdown("<div style='padding-top:15px; font-weight:bold;'>⏳ Okres analizy:</div>", unsafe_allow_html=True)
-with col_time2:
-    period = st.select_slider("", options=["1mo", "3mo", "6mo", "1y", "3y", "5y", "10y", "max"], value="1y")
+# ==========================================
+# 🕒 NOWY PANEL: KONFIGURACJA CZASU
+# ==========================================
+st.markdown("<h4 style='color: #3b82f6;'>⏳ Wybierz tryb zakresu analitycznego</h4>", unsafe_allow_html=True)
+time_mode = st.radio(
+    "Metoda wprowadzania:", 
+    ["📅 Standardowe z rynku (styl XTB)", "🎚️ Szybki suwak", "⏱️ Własny (dokładny co do sekundy)"], 
+    horizontal=True, 
+    label_visibility="collapsed"
+)
 
+# Zmienne do przechowywania wybranego czasu
+selected_period = None
+start_date = None
+end_date = None
+
+if time_mode == "📅 Standardowe z rynku (styl XTB)":
+    xtb_opts = {
+        "1D (Dzisiaj)": "1d",
+        "1W (Ostatni tydzień)": "5d",
+        "1M (Ostatni miesiąc)": "1mo",
+        "3M (Kwartał)": "3mo",
+        "6M (Półrocze)": "6mo",
+        "YTD (Od początku roku)": "ytd",
+        "1Y (Ostatni rok)": "1y",
+        "3Y (Ostatnie 3 lata)": "3y",
+        "5Y (Ostatnie 5 lat)": "5y",
+        "MAX (Pełna dostępna historia)": "max"
+    }
+    # Rozłożenie opcji w poziomie (selectbox dla przejrzystości)
+    chosen_xtb = st.selectbox("Wybierz predefiniowany okres XTB:", list(xtb_opts.keys()))
+    selected_period = xtb_opts[chosen_xtb]
+
+elif time_mode == "🎚️ Szybki suwak":
+    selected_period = st.select_slider(
+        "Przesuń, aby dopasować szerokość okna czasowego:", 
+        options=["1mo", "3mo", "6mo", "1y", "3y", "5y", "10y", "max"], 
+        value="1y"
+    )
+
+else:
+    st.markdown("<span style='color: #94a3b8; font-size:0.9em;'>Wprowadź ręcznie kalendarz inwestycyjny. API pozwala na wpisanie sekund (parametr step=1).</span>", unsafe_allow_html=True)
+    col_s, col_e = st.columns(2)
+    with col_s:
+        d_start = st.date_input("Od: Data początkowa", value=datetime.today() - timedelta(days=365))
+        # time_input z parametrem step=1 wymusza dokładność co do sekundy
+        t_start = st.time_input("Od: Czas (godz:min:sek)", value=time(9, 0, 0), step=1)
+    with col_e:
+        d_end = st.date_input("Do: Data końcowa", value=datetime.today())
+        t_end = st.time_input("Do: Czas (godz:min:sek)", value=time(17, 30, 0), step=1)
+    
+    start_date = datetime.combine(d_start, t_start)
+    end_date = datetime.combine(d_end, t_end)
+
+st.divider()
+
+# ==========================================
+# GŁÓWNY INTERFEJS - ZAKŁADKI
+# ==========================================
 tab1, tab2, tab3 = st.tabs(["📊 Analiza Szczegółowa Aktywa", "⚖️ Porównywarka ETF / Akcji", "ℹ️ Instrukcja"])
 
 with tab1:
@@ -143,10 +205,11 @@ with tab1:
     if selected_ticker:
         asset = st.session_state.portfolio[selected_ticker]
         with st.spinner("Przetwarzanie danych..."):
-            data = st.session_state.engine.get_data(asset.ticker, period)
+            # Przekazujemy wszystkie możliwe parametry czasowe
+            data = st.session_state.engine.get_data(asset.ticker, period=selected_period, start=start_date, end=end_date)
             
         if data.empty:
-            st.error(f"⚠️ Brak danych dla symbolu {asset.ticker} w okresie {period}.")
+            st.error(f"⚠️ Brak danych w API dla symbolu {asset.ticker} we wskazanym okresie. Wybierz szerszy zakres.")
         else:
             ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(data)
             total_return = data['Cumulative_Return'].iloc[-1] * 100
@@ -201,7 +264,7 @@ with tab2:
             palette = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"]
             
             for idx, t in enumerate(selected_to_compare):
-                df = st.session_state.engine.get_data(t, period)
+                df = st.session_state.engine.get_data(t, period=selected_period, start=start_date, end=end_date)
                 if not df.empty:
                     ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(df)
                     total_return = df['Cumulative_Return'].iloc[-1] * 100
@@ -219,7 +282,8 @@ with tab2:
                     })
             
             if comparison_rows:
-                ax_comp.set_title(f"Porównanie skumulowanego zysku (%) w okresie: {period}", fontsize=12, fontweight='bold', color='#f8fafc')
+                info_text = f"Zakres danych: {selected_period}" if selected_period else f"Od: {start_date.strftime('%Y-%m-%d %H:%M:%S')} Do: {end_date.strftime('%Y-%m-%d %H:%M:%S')}"
+                ax_comp.set_title(f"Porównanie skumulowanego zysku (%) | {info_text}", fontsize=12, fontweight='bold', color='#f8fafc')
                 ax_comp.set_ylabel("Zysk (%)", color='#94a3b8')
                 ax_comp.set_xlabel("Data", color='#94a3b8')
                 ax_comp.tick_params(colors='#94a3b8')
@@ -237,7 +301,7 @@ with tab2:
                 best_by_return = max(comparison_rows, key=lambda x: x["Całkowity zysk (%)"])
                 
                 if best_by_sharpe["Ticker"] == best_by_return["Ticker"]:
-                    st.success(f"🏆 **Zdecydowany faworyt:** Teoretycznie najbardziej opłacalną inwestycją w okresie **{period}** jest **{best_by_sharpe['Ticker']}**. Instrument ten osiągnął zarówno najwyższy całkowity zwrot ({best_by_sharpe['Całkowity zysk (%)']}%), jak i najwyższą efektywność skorygowaną o ryzyko (Wskaźnik Sharpe'a: {best_by_sharpe['Wskaźnik Sharpe\'a']}).")
+                    st.success(f"🏆 **Zdecydowany faworyt:** Teoretycznie najbardziej opłacalną inwestycją we wskazanym okresie jest **{best_by_sharpe['Ticker']}**. Instrument ten osiągnął zarówno najwyższy całkowity zwrot ({best_by_sharpe['Całkowity zysk (%)']}%), jak i najwyższą efektywność skorygowaną o ryzyko (Wskaźnik Sharpe'a: {best_by_sharpe['Wskaźnik Sharpe\'a']}).")
                 else:
                     st.info(f"⚖️ **Werdykt zależny od strategii:**\n\n"
                             f"* **Dla zwrotu absolutnego:** Najbardziej opłacił się **{best_by_return['Ticker']}** z zyskiem na poziomie **{best_by_return['Całkowity zysk (%)']}%**.\n"
@@ -253,8 +317,8 @@ with tab3:
     Ten system pozwala na profesjonalną analizę instrumentów giełdowych.
     
     **Jak korzystać z aplikacji?**
-    1. **Dodaj aktywa:** Rozwiń menu po lewej stronie. Wpisz nazwę firmy (np. *Apple*), aby inteligentny silnik znalazł powiązane akcje i fundusze ETF.
-    2. **Wybierz okres:** Użyj suwaka powyżej, aby zmienić ramy czasowe (od 1 miesiąca do maksimum).
-    3. **Analiza Szczegółowa:** W pierwszej zakładce przeanalizujesz ryzyko (Wskaźnik Sharpe'a) oraz rozkład statystyczny pojedynczej spółki.
-    4. **Porównywarka:** W drugiej zakładce nałożysz na siebie kilka funduszy ETF lub akcji, aby zobaczyć, który z nich wygenerował najwyższy zysk procentowy w danym czasie.
+    1. **Dodaj aktywa:** Rozwiń menu po lewej stronie. Wpisz nazwę firmy, aby algorytm zmapował fundusze ETF i rynki europejskie.
+    2. **Czas Analizy:** Masz pełną kontrolę – użyj rynkowych opcji (np. YTD, 1Y) jak w profesjonalnych terminalach, zjedź suwakiem lub podaj czas co do sekundy.
+    3. **Analiza Szczegółowa:** Badaj statystykę wybranego instrumentu w poszukiwaniu rynkowych anomalii.
+    4. **Porównywarka:** Zestawiaj aktywa na jednym wykresie i korzystaj z automatycznego systemu doradczego oceniającego Sharpe Ratio.
     """)
