@@ -41,52 +41,51 @@ class FinancialEngine:
         return annual_return, annual_volatility, sharpe
 
     def scan_etfs_for_holding(self, stock_ticker: str) -> list:
-        # Stabilne mapowanie algorytmiczne (Zabezpieczenie przed blokadami API w chmurze)
         hardcoded_mapping = {
             "NVDA": [
-                ("SMH", "VanEck Semiconductor ETF | Udział: 24.10%"), 
-                ("SOXX", "iShares Semiconductor ETF | Udział: 8.50%"), 
-                ("QDVE.DE", "iShares S&P 500 Tech Sector UCITS ETF | Udział: 6.20%"), 
-                ("QQQ", "Invesco QQQ Trust (Nasdaq 100) | Udział: 5.40%")
+                ("SMH", "SMH - VanEck Semiconductor ETF (Udział NVDA: 24.10%)"), 
+                ("SOXX", "SOXX - iShares Semiconductor ETF (Udział NVDA: 8.50%)"), 
+                ("QDVE.DE", "QDVE.DE - iShares S&P 500 Tech Sector UCITS ETF (Udział NVDA: 6.20%)"), 
+                ("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Udział NVDA: 5.40%)")
             ],
             "AAPL": [
-                ("XLK", "Technology Select Sector SPDR Fund | Udział: 22.30%"), 
-                ("QDVE.DE", "iShares S&P 500 Tech Sector UCITS ETF | Udział: 18.40%"),
-                ("QQQ", "Invesco QQQ Trust (Nasdaq 100) | Udział: 8.90%")
+                ("XLK", "XLK - Technology Select Sector SPDR Fund (Udział AAPL: 22.30%)"), 
+                ("QDVE.DE", "QDVE.DE - iShares S&P 500 Tech Sector UCITS ETF (Udział AAPL: 18.40%)"),
+                ("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Udział AAPL: 8.90%)")
             ],
             "MSFT": [
-                ("XLK", "Technology Select Sector SPDR Fund | Udział: 21.10%"), 
-                ("QDVE.DE", "iShares S&P 500 Tech Sector UCITS ETF | Udział: 19.10%"),
-                ("QQQ", "Invesco QQQ Trust (Nasdaq 100) | Udział: 8.60%")
+                ("XLK", "XLK - Technology Select Sector SPDR Fund (Udział MSFT: 21.10%)"), 
+                ("QDVE.DE", "QDVE.DE - iShares S&P 500 Tech Sector UCITS ETF (Udział MSFT: 19.10%)"),
+                ("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Udział MSFT: 8.60%)")
             ],
             "CDR.WA": [
-                ("GPW20", "WIG20 Index Fund | Udział: 5.15%")
+                ("GPW20", "GPW20 - WIG20 Index Fund (Udział CDR: 5.15%)")
             ]
         }
         return hardcoded_mapping.get(stock_ticker.upper(), [])
 
-st.set_page_config(page_title="Globalny Analizator Ryzyka ETF v7.0", layout="wide")
+st.set_page_config(page_title="Globalny Analizator Ryzyka ETF v7.5", layout="wide")
 
 st.title("📈 Interaktywny Dashboard Finansowy i Analiza Ryzyka")
 st.caption("Projekt akademicki na ocenę 5.0 - Programowanie Obiektowe i Analityka Danych")
 
-# --- BEZPIECZNA INICJALIZACJA (Wymusza aktualizację metod po zmianie kodu) ---
 st.session_state.engine = FinancialEngine()
 
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = {
-        "SPY": Asset("SPY", "SPDR S&P 500 ETF Trust", "ETF"),
-        "QQQ": Asset("QQQ", "Invesco QQQ Trust (Nasdaq 100)", "ETF")
+        "SPY": Asset("SPY", "SPY - SPDR S&P 500 ETF Trust (Rynek USA - NYSE)", "ETF"),
+        "QQQ": Asset("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Rynek USA - NASDAQ)", "ETF")
     }
 
 st.sidebar.header("🗂️ Twój Portfel Obserwacyjny")
-new_ticker = st.sidebar.text_input("Dodaj Ticker ręcznie:").upper().strip()
-new_name = st.sidebar.text_input("Nazwa firmy:")
+new_ticker = st.sidebar.text_input("Dodaj Ticker ręcznie (np. TSLA):").upper().strip()
+new_name = st.sidebar.text_input("Pełny opis rynkowy (np. Tesla Corp na rynku USA):")
 new_type = st.sidebar.selectbox("Typ aktywa:", ["Akcja", "ETF"])
 
 if st.sidebar.button("Dodaj aktywo do bazy"):
     if new_ticker and new_name:
-        st.session_state.portfolio[new_ticker] = Asset(new_ticker, new_name, new_type)
+        formatted_name = f"{new_ticker} - {new_name}"
+        st.session_state.portfolio[new_ticker] = Asset(new_ticker, formatted_name, new_type)
         st.sidebar.success(f"Dodano {new_ticker}!")
 
 search_query = st.text_input("🔍 Wpisz nazwę spółki (np. nvidia, cd projekt, apple):").lower().strip()
@@ -94,44 +93,52 @@ search_query = st.text_input("🔍 Wpisz nazwę spółki (np. nvidia, cd projekt
 if search_query:
     if "nvidia" in search_query or "nvda" in search_query:
         main_ticker = "NVDA"
-        st.session_state.portfolio["NVDA"] = Asset("NVDA", "NVIDIA Corp (Rynek USA - NASDAQ)", "Akcja")
-        st.session_state.portfolio["NVD.DE"] = Asset("NVD.DE", "NVIDIA Corp (Rynek Europejski - Xetra)", "Akcja")
+        st.session_state.portfolio["NVDA"] = Asset("NVDA", "NVDA - NVIDIA Corp (Rynek USA - NASDAQ)", "Akcja")
+        st.session_state.portfolio["NVD.DE"] = Asset("NVD.DE", "NVD.DE - NVIDIA Corp (Rynek Europejski - Xetra)", "Akcja")
         
         etfs = st.session_state.engine.scan_etfs_for_holding(main_ticker)
         for ticker, desc in etfs:
             st.session_state.portfolio[ticker] = Asset(ticker, desc, "ETF")
-        st.success("✅ Zmapowano pomyślnie instrument NVDA (USA), NVD.DE (Europa) oraz fundusze ETF z udziałem powyżej 5%.")
+        st.success("✅ Zmapowano pomyślnie instrumenty spółki NVIDIA oraz fundusze ETF z udziałem powyżej 5%.")
         
     elif "cd projekt" in search_query or "cdr" in search_query:
         main_ticker = "CDR.WA"
-        st.session_state.portfolio["CDR.WA"] = Asset("CDR.WA", "CD Projekt SA (Rynek Polski - GPW)", "Akcja")
-        st.session_state.portfolio["2CD.DE"] = Asset("2CD.DE", "CD Projekt SA (Rynek Europejski - Borse Frankfurt)", "Akcja")
+        st.session_state.portfolio["CDR.WA"] = Asset("CDR.WA", "CDR.WA - CD Projekt SA (Rynek Polski - GPW)", "Akcja")
+        st.session_state.portfolio["2CD.DE"] = Asset("2CD.DE", "2CD.DE - CD Projekt SA (Rynek Europejski - Borse Frankfurt)", "Akcja")
         
         etfs = st.session_state.engine.scan_etfs_for_holding(main_ticker)
         for ticker, desc in etfs:
             st.session_state.portfolio[ticker] = Asset(ticker, desc, "ETF")
-        st.success("✅ Zmapowano pomyślnie instrument CDR.WA (Polska), 2CD.DE (Europa) oraz fundusze powiązane.")
+        st.success("✅ Zmapowano pomyślnie instrumenty spółki CD Projekt oraz fundusze powiązane.")
         
     elif "apple" in search_query or "aapl" in search_query:
         main_ticker = "AAPL"
-        st.session_state.portfolio["AAPL"] = Asset("AAPL", "Apple Inc (Rynek USA - NASDAQ)", "Akcja")
-        st.session_state.portfolio["APC.DE"] = Asset("APC.DE", "Apple Inc (Rynek Europejski - Xetra)", "Akcja")
+        st.session_state.portfolio["AAPL"] = Asset("AAPL", "AAPL - Apple Inc (Rynek USA - NASDAQ)", "Akcja")
+        st.session_state.portfolio["APC.DE"] = Asset("APC.DE", "APC.DE - Apple Inc (Rynek Europejski - Xetra)", "Akcja")
         
         etfs = st.session_state.engine.scan_etfs_for_holding(main_ticker)
         for ticker, desc in etfs:
             st.session_state.portfolio[ticker] = Asset(ticker, desc, "ETF")
-        st.success("✅ Zmapowano pomyślnie instrument AAPL (USA), APC.DE (Europa) oraz fundusze ETF z udziałem powyżej 5%.")
+        st.success("✅ Zmapowano pomyślnie instrumenty spółki Apple oraz fundusze ETF z udziałem powyżej 5%.")
         
     else:
         st.warning("⚠️ Wyszukiwarka demonstracyjna obsługuje zaawansowane mapowanie powiązań i ETF >5% dla głównych spółek giełdowych.")
 
 ticker_options = list(st.session_state.portfolio.keys())
-selected_ticker = st.selectbox("🎯 Wybierz instrument z bazy do wygenerowania raportu i wykresów:", ticker_options)
+
+# Dynamiczne mapowanie nazw do wyświetlenia w selektorze: "TICKER - Opis"
+display_options = {ticker: st.session_state.portfolio[ticker].name for ticker in ticker_options}
+selected_ticker = st.selectbox(
+    "🎯 Wybierz instrument z bazy do wygenerowania raportu i wykresów:", 
+    options=ticker_options, 
+    format_func=lambda x: display_options[x]
+)
+
 period = st.radio("⏳ Okres analizy historycznej:", ["1y", "5y", "max"], horizontal=True)
 
 if selected_ticker:
     asset = st.session_state.portfolio[selected_ticker]
-    st.subheader(f"📊 Raport wydajności: {asset.name} ({asset.ticker})")
+    st.subheader(f"📊 Raport wydajności dla: {asset.name}")
     
     with st.spinner("Pobieranie najświeższych danych z giełdy rynkowej..."):
         data = st.session_state.engine.get_data(asset.ticker, period)
@@ -169,7 +176,7 @@ if selected_ticker:
         
         axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='forestgreen', linewidth=2)
         axes[1, 0].set_title("3. Procentowy skumulowany zysk w czasie")
-        axes[1, 0].tick_params(axis='x', rotation=30)
+        axes[1, 1].tick_params(axis='x', rotation=30)
         
         sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'], color="orange")
         axes[1, 1].set_title("4. Boxplot: Detekcja anomalii i rozrzutu zmienności")
