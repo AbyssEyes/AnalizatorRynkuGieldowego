@@ -42,9 +42,25 @@ class FinancialEngine:
         try:
             ticker_data = yf.Ticker(ticker)
             hist = ticker_data.history(period=period, interval=interval)
+            
             if hist.empty:
                 return pd.DataFrame()
-            return pd.DataFrame(hist['Close'])
+                
+            # Wyciągnięcie samej ceny zamknięcia
+            df = pd.DataFrame(hist['Close'])
+            
+            # ==========================================
+            # 🛡️ FILTRY NAPRAWCZE DLA WYKRESÓW INTRADAY
+            # ==========================================
+            df = df.dropna()  # Usuwa luki z pustymi danymi (NaN)
+            df = df.sort_index()  # Wymusza absolutną chronologię (Naprawia cofające się linie!)
+            
+            # Matplotlib ma problemy ze strefami czasowymi (UTC/EST) - ujednolicamy czas
+            if df.index.tzinfo is not None:
+                df.index = df.index.tz_localize(None)
+                
+            return df
+            
         except Exception:
             return pd.DataFrame()
 
