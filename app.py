@@ -83,13 +83,12 @@ class FinancialEngine:
             df = pd.DataFrame(hist['Close'])
             df = df.dropna()
             
-            # 🛡️ PANCERNY FILTR DANYCH (Naprawia zygzaki / pajęczyny na wykresach intraday)
-            df.index = pd.to_datetime(df.index, utc=True)  # Wymuszenie czystego formatu daty UTC
-            df = df[~df.index.duplicated(keep='last')]     # Usunięcie zduplikowanych czasów (bug yfinance)
-            df = df.sort_index()                           # Perfekcyjne ułożenie chronologiczne
+            df.index = pd.to_datetime(df.index, utc=True)
+            df = df[~df.index.duplicated(keep='last')]
+            df = df.sort_index()
             
             if df.index.tzinfo is not None:
-                df.index = df.index.tz_localize(None)      # Matplotlib wymaga daty bez twardej strefy czasowej
+                df.index = df.index.tz_localize(None)
                 
             return df
         except Exception:
@@ -167,7 +166,7 @@ sns.set_theme(style="darkgrid", rc={
 })
 
 st.title("📊 Terminal Analityczny (XTB Helper)")
-st.caption("Ocena ekspozycji | Raport AI Momentum | Horyzonty inwestycyjne XTB")
+st.caption("Ocena ekspozycji | Raport AI Momentum | Zoptymalizowane wykresy bez luk rynkowych")
 
 st.session_state.engine = FinancialEngine()
 if 'portfolio' not in st.session_state:
@@ -211,7 +210,6 @@ xtb_opts = {
     "YTD": "ytd", "1Y": "1y", "3Y": "3y", "5Y": "5y", "MAX": "max"
 }
 
-# ZAKŁADKI Z ZINTEGROWANYM HORYZONTEM CZASOWYM
 tab1, tab2, tab3 = st.tabs(["🏠 Strona Główna (O Projekcie)", "📈 Analiza Pojedyncza", "⚖️ Porównywarka Koszyka"])
 
 with tab1:
@@ -221,10 +219,10 @@ with tab1:
     Aplikacja stanowi w pełni obiektowy projekt w języku Python, zaprojektowany jako profesjonalne narzędzie wspomagające decyzje giełdowe i analizę ryzyka na platformach brokerskich. Została zbudowana z naciskiem na **czysty kod (OOP)**, **obsługę błędów** oraz **hybrydową architekturę AI**.
     
     ### 🎯 Główne Założenia i Decyzje Projektowe
-    1. **System Hybrydowego Mapowania:** Odejście od ręcznego wpisywania symboli giełdowych. Algorytm na podstawie nazwy potocznej lokalizuje aktywa na różnych rynkach (np. USA i Europa) i automatycznie wiąże je z funduszami ETF na podstawie rygorystycznego kryterium progu wagowego (np. pow. 5%).
-    2. **Wzorzec Separacji (MVC):** Ścisłe oddzielenie modułów pobierania danych (silnik `yfinance`), przekształceń matematycznych (`Pandas/Numpy`) oraz warstwy prezentacji (`Streamlit`).
+    1. **System Hybrydowego Mapowania:** Algorytm na podstawie nazwy potocznej lokalizuje aktywa na różnych rynkach (np. USA i Europa) i automatycznie wiąże je z funduszami ETF na podstawie rygorystycznego kryterium progu wagowego.
+    2. **Wzorzec Separacji (MVC):** Ścisłe oddzielenie modułów pobierania danych (`yfinance`), przekształceń matematycznych (`Pandas/Numpy`) oraz warstwy prezentacji (`Streamlit`).
     3. **Algorytm GenAI (Momentum):** Implementacja asystenta, który na podstawie skumulowanych zwrotów i krzywej zmienności (wskaźnik Sharpe'a) werbalizuje oceny inwestycyjne. 
-    4. **Bezpieczeństwo Wykonania:** Wdrożenie walidacji wielopoziomowej. Aplikacja przechwytuje luki w danych (`NaN`), odrzuca przekroczone limity zapytań chmurowych i wymusza chronologię osi czasu przed renderowaniem biblioteki `Matplotlib`.
+    4. **Oś Czasu (Anty-Gap System):** Wdrożenie autorskiego rozwiązania w `matplotlib`, które "w locie" zamienia absolutne ramy czasowe na sekwencje ciągłe, całkowicie usuwając zniekształcenia wykresów (puste weekendy, luki nocne).
     
     ### ⚙️ Instrukcja Obsługi
     * **Zarządzanie Bazą (Menu Lewe):** Użyj wyszukiwarki do inteligentnego załadowania koszyka aktywów i wybierz interesującą Cię rozdzielczość wykresu (Interwał).
@@ -272,16 +270,31 @@ with tab2:
             fig, axes = plt.subplots(2, 2, figsize=(15, 9))
             fig.patch.set_facecolor('#131722')
             
-            axes[0, 0].plot(data.index, data['Close'], color='#2962ff', linewidth=1.5)
-            axes[0, 0].fill_between(data.index, data['Close'], data['Close'].min(), color='#2962ff', alpha=0.1)
+            # 🛠️ SYSTEM ANTY-GAP: Konwersja czasu na sekwencję (Punkty X od 0 do N)
+            x_seq = np.arange(len(data))
+            
+            # Formater Dat do osi X
+            step = max(1, len(data) // 6)
+            tick_positions = x_seq[::step]
+            if selected_interval in ['1m', '5m', '15m', '1h']:
+                tick_labels = [data.index[i].strftime('%Y-%m-%d %H:%M') for i in tick_positions]
+            else:
+                tick_labels = [data.index[i].strftime('%Y-%m-%d') for i in tick_positions]
+            
+            axes[0, 0].plot(x_seq, data['Close'], color='#2962ff', linewidth=1.5)
+            axes[0, 0].fill_between(x_seq, data['Close'], data['Close'].min(), color='#2962ff', alpha=0.1)
             axes[0, 0].set_title(f"Kurs: {asset.name}", color='#ffffff', fontsize=11)
+            axes[0, 0].set_xticks(tick_positions)
+            axes[0, 0].set_xticklabels(tick_labels, rotation=15)
             
             sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="#26a69a", bins=30)
             axes[0, 1].set_title("Rozkład odchyleń cenowych", color='#ffffff', fontsize=11)
             
             profit_color = '#26a69a' if total_return >= 0 else '#ef5350'
-            axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color=profit_color, linewidth=2)
+            axes[1, 0].plot(x_seq, data['Cumulative_Return'] * 100, color=profit_color, linewidth=2)
             axes[1, 0].set_title("Skumulowana krzywa kapitału (%)", color='#ffffff', fontsize=11)
+            axes[1, 0].set_xticks(tick_positions)
+            axes[1, 0].set_xticklabels(tick_labels, rotation=15)
             
             sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'].dropna(), color="#b2b5be")
             axes[1, 1].set_title("Oceny skrajności (Boxplot)", color='#ffffff', fontsize=11)
@@ -315,15 +328,22 @@ with tab3:
             fig_comp.patch.set_facecolor('#131722')
             ax_comp.set_facecolor('#1e222d')
             
+            longest_index = None
+            all_dfs = []
+            
             for idx, t in enumerate(selected_to_compare):
                 df = st.session_state.engine.get_data(t, period=selected_period_t3, interval=selected_interval)
                 if not df.empty and len(df) >= 2:
                     ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(df)
                     total_return = df['Cumulative_Return'].iloc[-1] * 100
                     
+                    if longest_index is None or len(df) > len(longest_index):
+                        longest_index = df.index
+                    
+                    x_seq = np.arange(len(df))
                     color = palette[idx % len(palette)]
                     asset_display_name = st.session_state.portfolio[t].name
-                    ax_comp.plot(df.index, df['Cumulative_Return'] * 100, label=asset_display_name, linewidth=2, color=color)
+                    ax_comp.plot(x_seq, df['Cumulative_Return'] * 100, label=asset_display_name, linewidth=2, color=color)
                     
                     comparison_rows.append({
                         "Instrument (Ekspozycja)": asset_display_name,
@@ -332,7 +352,17 @@ with tab3:
                         "Sharpe Ratio": round(sharpe, 2)
                     })
             
-            if comparison_rows:
+            if comparison_rows and longest_index is not None:
+                step = max(1, len(longest_index) // 8)
+                tick_positions = np.arange(len(longest_index))[::step]
+                if selected_interval in ['1m', '5m', '15m', '1h']:
+                    tick_labels = [longest_index[i].strftime('%Y-%m-%d %H:%M') for i in tick_positions]
+                else:
+                    tick_labels = [longest_index[i].strftime('%Y-%m-%d') for i in tick_positions]
+                
+                ax_comp.set_xticks(tick_positions)
+                ax_comp.set_xticklabels(tick_labels, rotation=15)
+                
                 best_by_sharpe = max(comparison_rows, key=lambda x: x["Sharpe Ratio"])
                 best_by_return = max(comparison_rows, key=lambda x: x["Zwrot (%)"])
                 
@@ -353,7 +383,7 @@ with tab3:
 
                 ax_comp.set_title(f"Dynamika zysku instrumentów bazowych | Okres: {selected_period_label_t3}", fontsize=13, fontweight='bold', color='#ffffff')
                 ax_comp.set_ylabel("Stopa zwrotu (%)", color='#787b86')
-                ax_comp.tick_params(colors='#787b86')
+                ax_comp.tick_params(colors='#787b86', labelsize=9)
                 legend = ax_comp.legend(loc="upper left", facecolor='#1e222d', edgecolor='#2a2e39')
                 plt.setp(legend.get_texts(), color='#d1d4dc', fontsize=9)
                 st.pyplot(fig_comp)
@@ -363,4 +393,3 @@ with tab3:
                 st.dataframe(comp_df, use_container_width=True)
             else:
                 st.error("Brak poprawnych danych rynkowych do przeliczenia koszyka.")
-            
