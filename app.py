@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-AI_EXCELLENT_THRESHOLD = 10.0
-AI_NEUTRAL_THRESHOLD = 0.0
+AI_EXCELLENT_THRESHOLD_PCT = 10.0
+AI_NEUTRAL_THRESHOLD_PCT = 0.0
 
 class Asset:
     def __init__(self, ticker: str, name: str, asset_type: str):
@@ -453,8 +453,8 @@ with tab4:
                 else:
                     monthly_amount = st.number_input("Kwota miesięcznej wpłaty:", min_value=50.0, value=500.0, step=50.0)
                     payment_months = st.number_input("Okres wpłat (miesiące):", min_value=2, max_value=120, value=12, step=1)
-                    transaction_dates = list(pd.date_range(end=common_end, periods=payment_months, freq='MS'))
-                    transaction_dates = [d for d in transaction_dates if d >= common_start]
+                    month_starts = list(pd.date_range(start=common_start, end=common_end, freq='MS'))
+                    transaction_dates = month_starts[-payment_months:] if len(month_starts) >= payment_months else month_starts
                     transaction_amount = float(monthly_amount)
 
                     if not transaction_dates:
@@ -497,27 +497,32 @@ with tab4:
                         total_invested = result_df["Kapitał wpłacony"].iloc[-1]
                         final_value = result_df["Wartość portfela"].iloc[-1]
                         total_return_pct = result_df["Stopa zwrotu %"].iloc[-1]
-                        rolling_max = result_df["Wartość portfela"].cummax().replace(0, np.nan)
+                        positive_values = result_df["Wartość portfela"] > 0
+                        rolling_max = result_df["Wartość portfela"].where(positive_values).cummax()
                         drawdown_series = (result_df["Wartość portfela"] / rolling_max) - 1
-                        max_drawdown = drawdown_series.min(skipna=True) * 100 if drawdown_series.notna().any() else 0.0
+                        max_drawdown = drawdown_series.min(skipna=True) * 100 if drawdown_series.notna().any() else np.nan
 
                         sc1, sc2, sc3, sc4 = st.columns(4)
                         sc1.metric("Łącznie wpłacono", f"{total_invested:.2f}")
                         sc2.metric("Wartość końcowa", f"{final_value:.2f}")
                         sc3.metric("Wynik netto (%)", f"{total_return_pct:.2f}%", delta=f"{total_return_pct:.2f}%")
-                        sc4.metric("Maks. obsunięcie (%)", f"{max_drawdown:.2f}%")
+                        sc4.metric("Maks. obsunięcie (%)", f"{max_drawdown:.2f}%" if pd.notna(max_drawdown) else "N/A")
 
                         asset_rank = []
                         for ticker, df_ticker in simulation_data.items():
                             close_sub = df_ticker['Close'].loc[common_start:common_end]
                             first_price = close_sub.iloc[0]
-                            if first_price > 0:
+                            last_price = close_sub.iloc[-1]
+                            if first_price > 0 and last_price > 0:
                                 asset_rank.append((display_options[ticker], ((close_sub.iloc[-1] / first_price) - 1) * 100))
-                        best_asset = max(asset_rank, key=lambda x: x[1]) if asset_rank else ("Brak", 0)
+                        best_asset = max(asset_rank, key=lambda x: x[1]) if asset_rank else None
 
-                        if total_return_pct >= AI_EXCELLENT_THRESHOLD:
-                            ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>, a najsilniejszym składnikiem było <b>{best_asset[0]}</b> ({best_asset[1]:.2f}%)."
-                        elif total_return_pct >= AI_NEUTRAL_THRESHOLD:
+                        if total_return_pct >= AI_EXCELLENT_THRESHOLD_PCT:
+                            if best_asset:
+                                ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>, a najsilniejszym składnikiem było <b>{best_asset[0]}</b> ({best_asset[1]:.2f}%)."
+                            else:
+                                ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>."
+                        elif total_return_pct >= AI_NEUTRAL_THRESHOLD_PCT:
                             ai_sim_text = f"🟡 <b>Ocena AI:</b> Wynik dodatni, ale umiarkowany. Portfel zakończył symulację na poziomie <b>{total_return_pct:.2f}%</b>. Rozważ wydłużenie horyzontu lub zmianę koszyka."
                         else:
                             ai_sim_text = f"🔴 <b>Ocena AI:</b> Symulacja zakończyła się stratą <b>{total_return_pct:.2f}%</b>. Największe ryzyko było widoczne przy obsunięciu <b>{max_drawdown:.2f}%</b>."
