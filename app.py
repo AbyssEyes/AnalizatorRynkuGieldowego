@@ -452,7 +452,7 @@ with tab4:
                     transaction_amount = float(one_time_amount)
                 else:
                     monthly_amount = st.number_input("Kwota miesięcznej wpłaty:", min_value=50.0, value=500.0, step=50.0)
-                    payment_months = st.number_input("Okres wpłat (miesiące):", min_value=2, max_value=120, value=12, step=1)
+                    payment_months = st.number_input("Okres wpłat (ostatnie miesiące):", min_value=2, max_value=120, value=12, step=1)
                     month_starts = list(pd.date_range(start=common_start, end=common_end, freq='MS'))
                     transaction_dates = month_starts[-payment_months:] if len(month_starts) >= payment_months else month_starts
                     transaction_amount = float(monthly_amount)
@@ -514,8 +514,9 @@ with tab4:
                             first_price = close_sub.iloc[0]
                             last_price = close_sub.iloc[-1]
                             if first_price > 0 and last_price > 0:
-                                asset_rank.append((display_options[ticker], ((close_sub.iloc[-1] / first_price) - 1) * 100))
+                                asset_rank.append((display_options[ticker], ((last_price / first_price) - 1) * 100))
                         best_asset = max(asset_rank, key=lambda x: x[1]) if asset_rank else None
+                        drawdown_text = f"{max_drawdown:.2f}%" if pd.notna(max_drawdown) else "brakiem danych"
 
                         if total_return_pct >= AI_EXCELLENT_THRESHOLD_PCT:
                             if best_asset:
@@ -525,7 +526,7 @@ with tab4:
                         elif total_return_pct >= AI_NEUTRAL_THRESHOLD_PCT:
                             ai_sim_text = f"🟡 <b>Ocena AI:</b> Wynik dodatni, ale umiarkowany. Portfel zakończył symulację na poziomie <b>{total_return_pct:.2f}%</b>. Rozważ wydłużenie horyzontu lub zmianę koszyka."
                         else:
-                            ai_sim_text = f"🔴 <b>Ocena AI:</b> Symulacja zakończyła się stratą <b>{total_return_pct:.2f}%</b>. Największe ryzyko było widoczne przy obsunięciu <b>{max_drawdown:.2f}%</b>."
+                            ai_sim_text = f"🔴 <b>Ocena AI:</b> Symulacja zakończyła się stratą <b>{total_return_pct:.2f}%</b>. Największe ryzyko było widoczne przy obsunięciu <b>{drawdown_text}</b>."
 
                         st.markdown(f"""
 <div class="ai-box">
