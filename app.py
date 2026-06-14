@@ -143,4 +143,12 @@ if selected_ticker:
         sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="purple", bins=30)
         axes[0, 1].set_title("2. Histogram: Rozkład dziennych stóp zwrotu")
         
-        axes[1, 0].plot(data.index, data['Cumulative_Return'] *
+        axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='forestgreen', linewidth=2)
+        axes[1, 1].set_title("3. Procentowy skumulowany zysk w czasie")
+        axes[1, 0].tick_params(axis='x', rotation=30)
+        
+        sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'], color="orange")
+        axes[1, 1].set_title("4. Boxplot: Detekcja anomalii i rozrzutu zmienności")
+        
+        plt.tight_layout()
+        st.pyplot(fig)
