@@ -60,7 +60,14 @@ class FinancialEngine:
             "PKN.WA": "Największy polski koncern multienergetyczny, posiadający rafinerie i sieć detaliczną w regionie CEE.",
             "DNP.WA": "Polska sieć supermarketów, najszybciej rozwijająca się firma w sektorze handlu detalicznego na rodzimym rynku.",
             "SPY": "Najpopularniejszy fundusz ETF śledzący indeks S&P 500. Daje ekspozycję na 500 największych amerykańskich przedsiębiorstw.",
-            "QQQ": "Fundusz ETF oparty na indeksie Nasdaq-100. Skupia się na Big Tech i innowacjach."
+            "QQQ": "Fundusz ETF oparty na indeksie Nasdaq-100. Skupia się na Big Tech i innowacjach.",
+            "SMH": "VanEck Semiconductor ETF. Inwestuje w największe globalne spółki z branży układów scalonych i półprzewodników.",
+            "QDVE.DE": "iShares S&P 500 Information Technology. Europejski fundusz skupiający się na potężnym amerykańskim sektorze technologicznym.",
+            "XLK": "Technology Select Sector SPDR Fund. Oferuje ekspozycję na technologiczne i informatyczne spółki z indeksu S&P 500.",
+            "XLY": "Consumer Discretionary Select Sector SPDR Fund. Fundusz śledzący spółki z sektora dóbr luksusowych i konsumpcyjnych.",
+            "XLC": "Communication Services Select Sector SPDR Fund. Inwestuje w największych gigantów mediów, rozrywki i komunikacji internetowej.",
+            "PBS": "Invesco Dynamic Media ETF. Specjalistyczny fundusz skupiający się wyłącznie na dynamicznych spółkach medialnych.",
+            "ETFW20L.WA": "Beta ETF WIG20TR. Polski fundusz śledzący indeks 20 największych i najbardziej płynnych spółek z Giełdy Papierów Wartościowych w Warszawie."
         }
 
     def get_data(self, ticker: str, period: str, interval: str = "1d") -> pd.DataFrame:
@@ -98,8 +105,7 @@ class FinancialEngine:
         return annual_return, annual_volatility, sharpe
 
     def generate_ai_report(self, ticker: str, df: pd.DataFrame, sharpe: float, total_return: float) -> str:
-        base_ticker = ticker.split(".")[0] if "." in ticker and not ticker.endswith(".WA") else ticker
-        description = self.ai_profiles.get(base_ticker, "Fundusz inwestycyjny ETF dla dywersyfikacji kapitału.")
+        description = self.ai_profiles.get(ticker.upper(), "Instrument finansowy notowany na globalnych rynkach giełdowych.")
         
         momentum = "neutralne"
         if len(df) > 5:
@@ -111,17 +117,17 @@ class FinancialEngine:
             elif short_trend < -2:
                 momentum = f"spadkowe (korekta {short_trend:.1f}% w ostatnich interwałach)"
             else:
-                momentum = f"konsolidacyjne (brak wyraźnych odchyleń cenowych)"
+                momentum = f"konsolidacyjne (brak wyraźnych kierunkowych odchyleń cenowych)"
 
         verdict = ""
         if sharpe >= 1.0 and total_return > 0:
-            verdict = "🟢 **Ocena Inwestycyjna AI:** BARDZO WYSOKA ZDOLNOŚĆ. Aktywo wykazuje rewelacyjny stosunek zysku do ponoszonego ryzyka. Rynek sprzyja temu instrumentowi."
+            verdict = "🟢 <b>Ocena Inwestycyjna AI:</b> BARDZO WYSOKA ZDOLNOŚĆ. Aktywo wykazuje rewelacyjny stosunek zysku do ponoszonego ryzyka. Rynek sprzyja temu instrumentowi."
         elif sharpe > 0 and total_return > 0:
-            verdict = "🟡 **Ocena Inwestycyjna AI:** UMIARKOWANA ZDOLNOŚĆ. Aktywo generuje zyski, wymaga akceptacji standardowego ryzyka rynkowego. Inwestycja opłacalna."
+            verdict = "🟡 <b>Ocena Inwestycyjna AI:</b> UMIARKOWANA ZDOLNOŚĆ. Aktywo generuje zyski, wymaga akceptacji standardowego ryzyka rynkowego. Inwestycja opłacalna."
         else:
-            verdict = "🔴 **Ocena Inwestycyjna AI:** NISKA ZDOLNOŚĆ (RYZYKO). Zmienność lub straty przewyższają oczekiwane zyski z inwestycji wolnej od ryzyka. Zachowaj ostrożność."
+            verdict = "🔴 <b>Ocena Inwestycyjna AI:</b> NISKA ZDOLNOŚĆ (RYZYKO). Zmienność lub straty przewyższają oczekiwane zyski z inwestycji wolnej od ryzyka. Zachowaj ostrożność."
 
-        return f"""**O instrumencie:** {description}<br><br>**Ostatnie akcje (Momentum rynku):** W końcowej fazie analizowanego okresu zaobserwowano momentum **{momentum}**.<br><br>{verdict}"""
+        return f"<b>O instrumencie:</b> {description}<br><br><b>Ostatnie akcje (Momentum rynku):</b> W końcowej fazie analizowanego okresu zaobserwowano momentum <b>{momentum}</b>.<br><br>{verdict}"
 
 st.set_page_config(page_title="XTB Helper Pro", layout="wide", page_icon="📊")
 
@@ -208,9 +214,28 @@ selected_period = xtb_opts[selected_period_label]
 
 st.divider()
 
-tab1, tab2, tab3 = st.tabs(["📈 Panel Głównego Instrumentu", "⚖️ Porównywarka i Ekspozycja", "ℹ️ Instrukcja"])
+tab1, tab2, tab3 = st.tabs(["🏠 Strona Główna (O Projekcie)", "📈 Analiza Pojedyncza", "⚖️ Porównywarka Koszyka"])
 
 with tab1:
+    st.markdown("""
+    ## 📖 Witaj w XTB Helper (Terminal Analityczny)
+    
+    Aplikacja stanowi w pełni obiektowy projekt w języku Python, zaprojektowany jako profesjonalne narzędzie wspomagające decyzje giełdowe i analizę ryzyka na platformach brokerskich. Została zbudowana z naciskiem na **czysty kod (OOP)**, **obsługę błędów** oraz **hybrydową architekturę AI**.
+    
+    ### 🎯 Główne Założenia i Decyzje Projektowe
+    1. **System Hybrydowego Mapowania:** Odejście od ręcznego wpisywania symboli giełdowych. Algorytm na podstawie nazwy potocznej lokalizuje aktywa na różnych rynkach (np. USA i Europa) i automatycznie wiąże je z funduszami ETF na podstawie rygorystycznego kryterium progu wagowego (np. pow. 5%).
+    2. **Wzorzec Separacji (MVC):** Ścisłe oddzielenie modułów pobierania danych (silnik `yfinance`), przekształceń matematycznych (`Pandas/Numpy`) oraz warstwy prezentacji (`Streamlit`).
+    3. **Algorytm GenAI (Momentum):** Implementacja asystenta, który na podstawie skumulowanych zwrotów i krzywej zmienności (wskaźnik Sharpe'a) werbalizuje oceny inwestycyjne. 
+    4. **Bezpieczeństwo Wykonania:** Wdrożenie walidacji wielopoziomowej. Aplikacja przechwytuje luki w danych (`NaN`), odrzuca przekroczone limity zapytań chmurowych i wymusza chronologię osi czasu przed renderowaniem biblioteki `Matplotlib`.
+    
+    ### ⚙️ Instrukcja Obsługi
+    * **Zarządzanie Bazą (Menu Lewe):** Użyj wyszukiwarki do inteligentnego załadowania koszyka aktywów i wybierz interesującą Cię rozdzielczość wykresu (Interwał).
+    * **Panel Czasu (Menu Górne):** Wybierz rynkowy zakres czasowy, z którego system ma zaciągnąć szeregi czasowe.
+    * **Zakładka [Analiza Pojedyncza]:** Wybierz konkretny instrument w celu przeanalizowania jego rozrzutu, stabilności i zapoznania się z werdyktem naszego Asystenta.
+    * **Zakładka [Porównywarka]:** Wybierz od 2 do 5 instrumentów, aby przeprowadzić ich rynkową konfrontację pod kątem efektywności alokacji kapitału.
+    """)
+
+with tab2:
     selected_ticker = st.selectbox("🎯 Wybierz instrument bazowy / ETF:", options=ticker_options, format_func=lambda x: display_options[x])
     
     if selected_ticker:
@@ -236,7 +261,7 @@ with tab1:
 <div class="ai-box">
     <div class="ai-header">🤖 AI Analiza Fundamentalna i Oceny Momentum</div>
     <div style="color: #d1d4dc; font-size: 0.95rem; line-height: 1.6;">
-        {ai_text}
+{ai_text}
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -265,7 +290,7 @@ with tab1:
             plt.tight_layout()
             st.pyplot(fig)
 
-with tab2:
+with tab3:
     st.markdown("### ⚖️ Kalkulator Opłacalności Inwestycji")
     
     selected_to_compare = st.multiselect(
@@ -305,12 +330,11 @@ with tab2:
                 best_by_sharpe = max(comparison_rows, key=lambda x: x["Sharpe Ratio"])
                 best_by_return = max(comparison_rows, key=lambda x: x["Zwrot (%)"])
                 
-                # 🤖 AI BOX DLA ZAKŁADKI PORÓWNANIA
                 ai_compare_text = ""
                 if best_by_sharpe["Instrument (Ekspozycja)"] == best_by_return["Instrument (Ekspozycja)"]:
-                    ai_compare_text = f"🟢 **Sygnał Optymalny:** Instrument **{best_by_sharpe['Instrument (Ekspozycja)']}** bezapelacyjnie wygrywa w tym oknie czasowym. Osiągnął największy skok kapitału (+{best_by_sharpe['Zwrot (%)']}%) przy jednoczesnym zachowaniu idealnej odporności na wstrząsy rynkowe (Sharpe: {best_by_sharpe['Sharpe Ratio']})."
+                    ai_compare_text = f"🟢 <b>Sygnał Optymalny:</b> Instrument <b>{best_by_sharpe['Instrument (Ekspozycja)']}</b> bezapelacyjnie wygrywa w tym oknie czasowym. Osiągnął największy skok kapitału (+{best_by_sharpe['Zwrot (%)']}%) przy jednoczesnym zachowaniu idealnej odporności na wstrząsy rynkowe (Sharpe: {best_by_sharpe['Sharpe Ratio']})."
                 else:
-                    ai_compare_text = f"🟡 **Dylemat Inwestora (Zysk vs Ryzyko):**<br><br>👉 **Agresywny Kapitał:** Maksymalny zysk absolutny wygenerował **{best_by_return['Instrument (Ekspozycja)']}** (+{best_by_return['Zwrot (%)']}%).<br>👉 **Defensywny Portfel:** Najwyższą stabilność i odporność na wahania kursu oferuje **{best_by_sharpe['Instrument (Ekspozycja)']}** (Sharpe: {best_by_sharpe['Sharpe Ratio']})."
+                    ai_compare_text = f"🟡 <b>Dylemat Inwestora (Zysk vs Ryzyko):</b><br><br>👉 <b>Agresywny Kapitał:</b> Maksymalny zysk absolutny wygenerował <b>{best_by_return['Instrument (Ekspozycja)']}</b> (+{best_by_return['Zwrot (%)']}%).<br>👉 <b>Defensywny Portfel:</b> Najwyższą stabilność i odporność na wahania kursu oferuje <b>{best_by_sharpe['Instrument (Ekspozycja)']}</b> (Sharpe: {best_by_sharpe['Sharpe Ratio']})."
 
                 st.markdown(f"""
 <div class="ai-box">
@@ -333,24 +357,3 @@ with tab2:
                 st.dataframe(comp_df, use_container_width=True)
             else:
                 st.error("Brak poprawnych danych rynkowych do przeliczenia koszyka.")
-
-with tab3:
-    st.markdown("""
-    ## 📖 Instrukcja Obsługi Terminala XTB Helper
-    
-    Witaj w interaktywnym asystencie inwestycyjnym. Aplikacja została stworzona z myślą o szybkiej ocenie kondycji spółek oraz optymalizacji portfela inwestycyjnego poprzez fundusze ETF.
-    
-    ### 1. Panel Boczny (Zarządzanie Bazą i Czasem)
-    * **Wyszukiwarka:** Wpisz nazwę potoczną lub skrót spółki (np. `tesla`, `orlen`, `netflix`). Silnik automatycznie znajdzie odpowiedniki na rynku głównym (USA/Polska), rynkach europejskich (Xetra) oraz powiązane fundusze ETF, ułatwiając dywersyfikację.
-    * **Interwał Wykresu:** Zmień dokładność pojedynczej "świecy" na wykresie. Możesz analizować dane w ujęciu Dziennym (1d), Godzinowym (1h) czy Minutowym (1m). Pamiętaj o ograniczeniach API giełdowego (np. interwał 1-minutowy jest dostępny tylko dla okresu max 7 dni).
-    
-    ### 2. Panel Główny (Górna Belka Czasowa)
-    Został wystylizowany na wzór profesjonalnych platform transakcyjnych (np. xStation 5). Za pomocą szybkiego wyboru określasz horyzont inwestycyjny:
-    * **1D - 6M:** Idealne do daytradingu i analizy krótkoterminowej (w połączeniu z niskim interwałem).
-    * **YTD (Year-to-date):** Zysk liczony od pierwszego dnia obecnego roku kalendarzowego.
-    * **1Y - MAX:** Zakres do strategicznego inwestowania.
-    
-    ### 3. Zakładki Funkcjonalne
-    * **📈 Panel Głównego Instrumentu:** Dogłębna statystyka wybranego aktywa. W lewym górnym rogu znajdziesz ocenę wskaźnika **Sharpe'a**, a pod nią inteligentnego **Asystenta AI**, który na bieżąco analizuje wahania z ostatnich dni i generuje podsumowanie kondycji finansowej spółki. Poniżej znajdują się profesjonalne wykresy stóp zwrotu i zmienności (Boxplot).
-    * **⚖️ Porównywarka i Ekspozycja:** Zestaw koszyk instrumentów z panelu wielokrotnego wyboru. Na górze od razu pojawi się ocena algorytmu sztucznej inteligencji, który wyłoni zwycięzcę konfrontacji w oparciu o czysty zysk spekulacyjny (Return) oraz stabilność inwestycji (Sharpe Ratio).
-    """)
