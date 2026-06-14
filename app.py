@@ -5,6 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+EXCELLENT_RETURN_THRESHOLD_PCT = 10.0
+NEUTRAL_RETURN_THRESHOLD_PCT = 0.0
+
 class Asset:
     def __init__(self, ticker: str, name: str, asset_type: str):
         self.ticker = ticker.upper()
@@ -211,7 +214,7 @@ xtb_opts = {
     "1M": "1mo", "3M": "3mo", "6M": "6mo", "YTD": "ytd", "1Y": "1y", "3Y": "3y", "5Y": "5y", "MAX": "max"
 }
 
-tab1, tab2, tab3 = st.tabs(["🏠 Strona Główna (O Projekcie)", "📈 Analiza Pojedyncza i DCA", "⚖️ Porównywarka Koszyka"])
+tab1, tab2, tab3, tab4 = st.tabs(["🏠 Strona Główna (O Projekcie)", "📈 Analiza Pojedyncza", "⚖️ Porównywarka Koszyka", "💸 Symulacja Kapitału"])
 
 with tab1:
     st.markdown("""
@@ -315,70 +318,6 @@ with tab2:
             csv = data.to_csv().encode('utf-8')
             st.download_button(label="📥 Eksportuj surowe dane instrumentu do CSV", data=csv, file_name=f'{asset.ticker}_data.csv', mime='text/csv')
 
-            # --- SYMULATOR OSZCZĘDZANIA DCA Z PROWIZJAMI BROKERA ---
-            st.markdown("---")
-            with st.expander("💸 PROFESSIONAL DCA SIMULATOR (Strategia Regularnych Wpłat)"):
-                st.write("Skonfiguruj parametry oszczędzania i opłat maklerskich dla wybranego horyzontu.")
-                
-                col_dca1, col_dca2 = st.columns(2)
-                with col_dca1:
-                    monthly_inv = st.number_input("Miesięczna kwota dopłaty (PLN/USD):", min_value=50, value=500, step=50)
-                    prowizja_wplata = st.number_input("Prowizja od wpłaty / zakupu % (np. XTB):", min_value=0.0, max_value=5.0, value=0.1, step=0.05)
-                with col_dca2:
-                    prowizja_wyplata = st.number_input("Prowizja od wypłaty / sprzedaży %:", min_value=0.0, max_value=5.0, value=0.1, step=0.05)
-                
-                # Sortowanie chronologiczne i próbkowanie danych na początek każdego miesiąca
-                monthly_data = data.resample('ME').first().dropna(subset=['Close']).sort_index()
-                
-                if len(monthly_data) >= 2:
-                    start_price = monthly_data['Close'].iloc[0]
-                    end_price = monthly_data['Close'].iloc[-1]
-                    
-                    st.markdown(f"📈 <b>Cenowe punkty zwrotne:</b> Kurs startowy symulacji: <b>{start_price:.2f}</b> | Kurs końcowy symulacji: <b>{end_price:.2f}</b>", unsafe_allow_html=True)
-                    
-                    # Obliczenia matematyczne symulacji DCA uwzględniające prowizje
-                    net_monthly_inv = monthly_inv * (1 - prowizja_wplata / 100)
-                    monthly_data['Shares_Bought'] = net_monthly_inv / monthly_data['Close']
-                    monthly_data['Cum_Shares'] = monthly_data['Shares_Bought'].cumsum()
-                    monthly_data['Total_Invested'] = (np.arange(len(monthly_data)) + 1) * monthly_inv
-                    
-                    # Wartość brutto i netto (po prowizji od wyjścia z pozycji)
-                    monthly_data['Portfolio_Value_Gross'] = monthly_data['Cum_Shares'] * monthly_data['Close']
-                    monthly_data['Portfolio_Value_Net'] = monthly_data['Portfolio_Value_Gross'] * (1 - prowizja_wyplata / 100)
-                    
-                    total_invested_nominal = monthly_data['Total_Invested'].iloc[-1]
-                    final_value_net = monthly_data['Portfolio_Value_Net'].iloc[-1]
-                    dca_profit_pct = ((final_value_net - total_invested_nominal) / total_invested_nominal) * 100
-                    
-                    dc1, dc2, dc3 = st.columns(3)
-                    dc1.grid = True
-                    dc1.metric("Łączny odłożony kapitał", f"{total_invested_nominal:.2f}")
-                    dc2.metric("Wartość portfela po opłatach", f"{final_value_net:.2f}")
-                    dc3.metric("Zysk/Strata netto z DCA (%)", f"{dca_profit_pct:.2f}%", delta=f"{dca_profit_pct:.2f}%")
-                    
-                    # WYKRES ZACHOWANIA TWOICH FUNDUSZY
-                    st.write("#### 📊 Rozwój struktury Twoich funduszy w czasie")
-                    fig_dca, ax_dca = plt.subplots(figsize=(14, 4.5))
-                    fig_dca.patch.set_facecolor('#131722')
-                    ax_dca.set_facecolor('#1e222d')
-                    
-                    dca_x_labels = [idx.strftime('%Y-%m') for idx in monthly_data.index]
-                    ax_dca.plot(dca_x_labels, monthly_data['Total_Invested'], color='#787b86', linestyle='--', label='Suma nominalnych wpłat')
-                    
-                    line_color = '#26a69a' if dca_profit_pct >= 0 else '#ef5350'
-                    ax_dca.plot(dca_x_labels, monthly_data['Portfolio_Value_Net'], color=line_color, linewidth=2, label='Realna wartość portfela (Netto)')
-                    ax_dca.fill_between(dca_x_labels, monthly_data['Portfolio_Value_Net'], monthly_data['Total_Invested'], color=line_color, alpha=0.08)
-                    
-                    ax_dca.set_title("Zachowanie funduszy: Kapitał Wpłacony vs Wartość Portfela Netto", color='#ffffff', fontsize=11)
-                    ax_dca.tick_params(colors='#787b86', labelsize=9)
-                    ax_dca.set_xticklabels(dca_x_labels, rotation=30)
-                    
-                    legend_dca = ax_dca.legend(loc="upper left", facecolor='#1e222d', edgecolor='#2a2e39')
-                    plt.setp(legend_dca.get_texts(), color='#d1d4dc', fontsize=9)
-                    st.pyplot(fig_dca)
-                else:
-                    st.warning("⚠️ Zbyt krótki horyzont czasowy, aby uruchomić symulację DCA. Wybierz okres co najmniej 3M.")
-
 with tab3:
     st.markdown("<div class='xtb-period-label'>HORYZONT CZASOWY PORÓWNANIA:</div>", unsafe_allow_html=True)
     selected_period_label_t3 = st.radio("Okres T3:", options=list(xtb_opts.keys()), horizontal=True, label_visibility="collapsed", key="radio_tab3")
@@ -464,3 +403,174 @@ with tab3:
                 st.error("Brak poprawnych danych rynkowych do przeliczenia koszyka.")
     else:
         st.info("👆 Wybierz co najmniej 2 instrumenty z listy, aby wygenerować analizę porównawczą koszyka.")
+
+with tab4:
+    st.markdown("<div class='xtb-period-label'>HORYZONT CZASOWY SYMULACJI:</div>", unsafe_allow_html=True)
+    selected_period_label_t4 = st.radio("Okres T4:", options=list(xtb_opts.keys()), horizontal=True, label_visibility="collapsed", key="radio_tab4")
+    selected_period_t4 = xtb_opts[selected_period_label_t4]
+
+    st.divider()
+    simulation_mode = st.radio("Tryb symulacji:", ["Jednorazowa wpłata", "Wpłaty co miesiąc"], horizontal=True)
+    selected_for_sim = st.multiselect(
+        "Wybierz jedną lub wiele akcji / ETF do symulacji:",
+        options=ticker_options,
+        format_func=lambda x: display_options[x],
+        default=[ticker_options[0]] if ticker_options else []
+    )
+
+    if selected_for_sim:
+        with st.spinner("Pobieranie danych do symulacji portfela..."):
+            simulation_data = {}
+            for ticker in selected_for_sim:
+                sim_df = st.session_state.engine.get_data(ticker, period=selected_period_t4, interval="1d")
+                if not sim_df.empty and len(sim_df) >= 2:
+                    simulation_data[ticker] = sim_df
+
+        if len(simulation_data) != len(selected_for_sim):
+            st.warning("⚠️ Część instrumentów nie ma wystarczających danych i została pominięta.")
+
+        if simulation_data:
+            common_start = max(df.index.min() for df in simulation_data.values())
+            common_end = min(df.index.max() for df in simulation_data.values())
+
+            if common_start >= common_end:
+                st.error("Brak wspólnego zakresu dat między wybranymi instrumentami.")
+            else:
+                combined_index = pd.DatetimeIndex([])
+                for df in simulation_data.values():
+                    combined_index = combined_index.union(pd.DatetimeIndex(df.loc[common_start:common_end].index))
+
+                if simulation_mode == "Jednorazowa wpłata":
+                    one_time_amount = st.number_input("Kwota jednorazowej wpłaty:", min_value=100.0, value=5000.0, step=100.0)
+                    one_time_date = st.date_input(
+                        "Data wpłaty:",
+                        value=common_start.date(),
+                        min_value=common_start.date(),
+                        max_value=common_end.date()
+                    )
+                    transaction_dates = [pd.Timestamp(one_time_date)]
+                    transaction_amount = float(one_time_amount)
+                else:
+                    monthly_amount = st.number_input("Kwota miesięcznej wpłaty:", min_value=50.0, value=500.0, step=50.0)
+                    payment_months = st.number_input("Okres wpłat (ostatnie miesiące):", min_value=2, max_value=120, value=12, step=1)
+                    month_start_dates = list(pd.date_range(start=common_start, end=common_end, freq='MS'))
+                    transaction_dates = month_start_dates[-payment_months:] if len(month_start_dates) >= payment_months else month_start_dates
+                    transaction_amount = float(monthly_amount)
+
+                    if not transaction_dates:
+                        st.warning("Wybrany okres nie mieści się w dostępnych danych dla wszystkich instrumentów.")
+
+                if transaction_dates:
+                    allocation_per_asset = 1 / len(simulation_data)
+                    invested_delta = pd.Series(0.0, index=combined_index)
+                    portfolio_value = pd.Series(0.0, index=combined_index)
+
+                    for tx_date in transaction_dates:
+                        execution_candidates = combined_index[combined_index >= tx_date]
+                        if len(execution_candidates) > 0:
+                            invested_delta.loc[execution_candidates[0]] += transaction_amount
+
+                    for ticker, df_ticker in simulation_data.items():
+                        close_series = df_ticker['Close'].loc[common_start:common_end].reindex(combined_index).ffill()
+                        shares_delta = pd.Series(0.0, index=combined_index)
+
+                        for tx_date in transaction_dates:
+                            candidates = close_series.loc[close_series.index >= tx_date].dropna()
+                            if len(candidates) > 0:
+                                exec_date = candidates.index[0]
+                                exec_price = candidates.iloc[0]
+                                if exec_price > 0:
+                                    shares_delta.loc[exec_date] += (transaction_amount * allocation_per_asset) / exec_price
+
+                        cumulative_shares = shares_delta.cumsum()
+                        portfolio_value = portfolio_value.add(cumulative_shares * close_series, fill_value=0.0)
+
+                    invested_cumulative = invested_delta.cumsum()
+                    result_df = pd.DataFrame({
+                        "Kapitał wpłacony": invested_cumulative,
+                        "Wartość portfela": portfolio_value
+                    }).dropna()
+
+                    if not result_df.empty and result_df["Kapitał wpłacony"].iloc[-1] > 0:
+                        result_df["Stopa zwrotu %"] = ((result_df["Wartość portfela"] - result_df["Kapitał wpłacony"]) / result_df["Kapitał wpłacony"]) * 100
+
+                        total_invested = result_df["Kapitał wpłacony"].iloc[-1]
+                        final_value = result_df["Wartość portfela"].iloc[-1]
+                        total_return_pct = result_df["Stopa zwrotu %"].iloc[-1]
+                        positive_values = result_df["Wartość portfela"] > 0
+                        rolling_max = result_df["Wartość portfela"].where(positive_values).cummax()
+                        valid_rolling_max = rolling_max.where(rolling_max > 0)
+                        drawdown_series = (result_df["Wartość portfela"] / valid_rolling_max) - 1
+                        max_drawdown = drawdown_series.min(skipna=True) * 100 if drawdown_series.notna().any() else np.nan
+
+                        sc1, sc2, sc3, sc4 = st.columns(4)
+                        sc1.metric("Łącznie wpłacono", f"{total_invested:.2f}")
+                        sc2.metric("Wartość końcowa", f"{final_value:.2f}")
+                        sc3.metric("Wynik netto (%)", f"{total_return_pct:.2f}%", delta=f"{total_return_pct:.2f}%")
+                        sc4.metric("Maks. obsunięcie (%)", f"{max_drawdown:.2f}%" if pd.notna(max_drawdown) else "N/A")
+
+                        asset_rank = []
+                        for ticker, df_ticker in simulation_data.items():
+                            close_sub = df_ticker['Close'].loc[common_start:common_end]
+                            first_price = close_sub.iloc[0]
+                            if first_price > 0:
+                                last_price = close_sub.iloc[-1]
+                                if last_price > 0:
+                                    asset_rank.append((display_options[ticker], ((last_price / first_price) - 1) * 100))
+                        best_asset = max(asset_rank, key=lambda x: x[1]) if asset_rank else None
+                        drawdown_text = f"{max_drawdown:.2f}%" if pd.notna(max_drawdown) else "brak danych"
+
+                        if total_return_pct >= EXCELLENT_RETURN_THRESHOLD_PCT:
+                            if best_asset:
+                                ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>, a najsilniejszym składnikiem było <b>{best_asset[0]}</b> ({best_asset[1]:.2f}%)."
+                            else:
+                                ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>."
+                        elif total_return_pct >= NEUTRAL_RETURN_THRESHOLD_PCT:
+                            ai_sim_text = f"🟡 <b>Ocena AI:</b> Wynik dodatni, ale umiarkowany. Portfel zakończył symulację na poziomie <b>{total_return_pct:.2f}%</b>. Rozważ wydłużenie horyzontu lub zmianę koszyka."
+                        else:
+                            ai_sim_text = f"🔴 <b>Ocena AI:</b> Symulacja zakończyła się stratą <b>{total_return_pct:.2f}%</b>. Największe ryzyko było widoczne przy obsunięciu <b>{drawdown_text}</b>."
+
+                        st.markdown(f"""
+<div class="ai-box">
+    <div class="ai-header">🤖 AI Podsumowanie Symulacji Kapitału</div>
+    <div style="color: #d1d4dc; font-size: 0.95rem; line-height: 1.6;">
+        {ai_sim_text}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+                        st.write("#### 📈 Praca Twojej gotówki w czasie")
+                        fig_sim, (ax_sim1, ax_sim2) = plt.subplots(2, 1, figsize=(14, 7), sharex=True)
+                        fig_sim.patch.set_facecolor('#131722')
+
+                        x_idx = np.arange(len(result_df))
+                        step = max(1, len(result_df) // 8)
+                        tick_positions = x_idx[::step]
+                        tick_labels = [result_df.index[i].strftime('%Y-%m-%d') for i in tick_positions]
+
+                        ax_sim1.set_facecolor('#1e222d')
+                        ax_sim1.plot(x_idx, result_df["Kapitał wpłacony"], color='#787b86', linestyle='--', label='Kapitał wpłacony')
+                        line_color = '#26a69a' if total_return_pct >= 0 else '#ef5350'
+                        ax_sim1.plot(x_idx, result_df["Wartość portfela"], color=line_color, linewidth=2, label='Wartość portfela')
+                        ax_sim1.fill_between(x_idx, result_df["Wartość portfela"], result_df["Kapitał wpłacony"], color=line_color, alpha=0.08)
+                        ax_sim1.set_title("Kapitał wpłacony vs wartość portfela", color='#ffffff', fontsize=11)
+                        ax_sim1.tick_params(colors='#787b86', labelsize=9)
+                        legend_sim = ax_sim1.legend(loc="upper left", facecolor='#1e222d', edgecolor='#2a2e39')
+                        plt.setp(legend_sim.get_texts(), color='#d1d4dc', fontsize=9)
+
+                        ax_sim2.set_facecolor('#1e222d')
+                        ax_sim2.plot(x_idx, result_df["Stopa zwrotu %"], color='#2962ff', linewidth=1.8)
+                        ax_sim2.axhline(0, color='#787b86', linestyle='--', linewidth=1)
+                        ax_sim2.set_title("Dynamika stopy zwrotu (%)", color='#ffffff', fontsize=11)
+                        ax_sim2.tick_params(colors='#787b86', labelsize=9)
+                        ax_sim2.set_xticks(tick_positions)
+                        ax_sim2.set_xticklabels(tick_labels, rotation=20)
+
+                        plt.tight_layout()
+                        st.pyplot(fig_sim)
+                    else:
+                        st.error("Nie udało się wyliczyć symulacji dla podanych parametrów.")
+        else:
+            st.error("Brak poprawnych danych rynkowych do wykonania symulacji.")
+    else:
+        st.info("👆 Wybierz przynajmniej jeden instrument, aby uruchomić symulację.")
