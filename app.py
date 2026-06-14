@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import requests
 
 class Asset:
     def __init__(self, ticker: str, name: str, asset_type: str):
@@ -13,7 +14,29 @@ class Asset:
 
 class FinancialEngine:
     def __init__(self):
-        self.headers = {"User-Agent": "Mozilla/5.0"}
+        self.headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+    def search_assets_auto(self, query: str):
+        if len(query) < 2:
+            return {}
+        try:
+            url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}&quotesCount=6&newsCount=0"
+            response = requests.get(url, headers=self.headers)
+            data = response.json()
+            quotes = data.get("quotes", [])
+            
+            results = {}
+            for q in quotes:
+                ticker = q.get("symbol")
+                shortname = q.get("shortname") or q.get("longname") or ticker
+                quote_type = q.get("quoteType")
+                
+                if quote_type in ["EQUITY", "ETF"] and ticker and not ticker.replace(".", "").isdigit():
+                    asset_type = "ETF" if quote_type == "ETF" else "Akcja"
+                    results[ticker] = Asset(ticker, shortname, asset_type)
+            return results
+        except Exception:
+            return {}
 
     def get_data(self, ticker: str, period: str) -> pd.DataFrame:
         if not ticker:
@@ -40,7 +63,7 @@ class FinancialEngine:
         
         return annual_return, annual_volatility, sharpe
 
-st.set_page_config(page_title="Analizator Giełdowy v5.0", layout="wide")
+st.set_page_config(page_title="Globalny Analizator Giełdowy v6.0", layout="wide")
 
 st.title("📈 Interaktywny Dashboard Finansowy i Analiza Ryzyka")
 st.caption("Projekt akademicki na ocenę 5.0 - Programowanie Obiektowe i Analityka Danych")
@@ -56,7 +79,7 @@ if 'portfolio' not in st.session_state:
 
 st.sidebar.header("🗂️ Twój Portfel Obserwacyjny")
 
-new_ticker = st.sidebar.text_input("Dodaj Ticker (np. NVDA, MSFT):").upper().strip()
+new_ticker = st.sidebar.text_input("Dodaj Ticker ręcznie (np. NVDA, MSFT):").upper().strip()
 new_name = st.sidebar.text_input("Nazwa firmy:")
 new_type = st.sidebar.selectbox("Typ aktywa:", ["Akcja", "ETF"])
 
@@ -66,6 +89,17 @@ if st.sidebar.button("Dodaj aktywo do bazy"):
         st.sidebar.success(f"Dodano {new_ticker}!")
     else:
         st.sidebar.error("Wypełnij ticker i nazwę!")
+
+search_query = st.text_input("🔍 Wyszukaj dowolną firmę lub fundusz (np. 'cd projekt', 'meta', 'tesla', 'nvidia'):").strip()
+
+if search_query:
+    found_assets = st.session_state.engine.search_assets_auto(search_query)
+    if found_assets:
+        for ticker, asset_obj in found_assets.items():
+            st.session_state.portfolio[ticker] = asset_obj
+        st.success(f"✅ Znaleziono i zmapowano instrumenty powiązane z frazą: '{search_query}'. Sprawdź listę poniżej.")
+    else:
+        st.warning("⚠️ Brak wyników wyszukiwania na giełdach dla podanej frazy.")
 
 ticker_options = list(st.session_state.portfolio.keys())
 selected_ticker = st.selectbox("🎯 Wybierz aktywo z bazy do przeprowadzenia analizy:", ticker_options)
@@ -79,7 +113,7 @@ if selected_ticker:
         data = st.session_state.engine.get_data(asset.ticker, period)
         
     if data.empty:
-        st.error(f"⚠️ Błąd: Nie udało się pobrać danych dla symbolu {asset.ticker}. Sprawdź poprawność tickera.")
+        st.error(f"⚠️ Błąd: Nie udało się pobrać danych dla symbolu {asset.ticker}. Sprawdź dostępność tickera dla wybranego okresu.")
     else:
         ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(data)
         total_return = data['Cumulative_Return'].iloc[-1] * 100
@@ -109,12 +143,4 @@ if selected_ticker:
         sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="purple", bins=30)
         axes[0, 1].set_title("2. Histogram: Rozkład dziennych stóp zwrotu")
         
-        axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='forestgreen', linewidth=2)
-        axes[1, 1].set_title("3. Procentowy skumulowany zysk w czasie")
-        axes[1, 0].tick_params(axis='x', rotation=30)
-        
-        sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'], color="orange")
-        axes[1, 1].set_title("4. Boxplot: Detekcja anomalii i rozrzutu zmienności")
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        axes[1, 0].plot(data.index, data['Cumulative_Return'] *
