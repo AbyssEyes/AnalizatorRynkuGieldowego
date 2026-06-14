@@ -82,10 +82,14 @@ class FinancialEngine:
                 
             df = pd.DataFrame(hist['Close'])
             df = df.dropna()
-            df = df.sort_index()
+            
+            # 🛡️ PANCERNY FILTR DANYCH (Naprawia zygzaki / pajęczyny na wykresach intraday)
+            df.index = pd.to_datetime(df.index, utc=True)  # Wymuszenie czystego formatu daty UTC
+            df = df[~df.index.duplicated(keep='last')]     # Usunięcie zduplikowanych czasów (bug yfinance)
+            df = df.sort_index()                           # Perfekcyjne ułożenie chronologiczne
             
             if df.index.tzinfo is not None:
-                df.index = df.index.tz_localize(None)
+                df.index = df.index.tz_localize(None)      # Matplotlib wymaga daty bez twardej strefy czasowej
                 
             return df
         except Exception:
@@ -144,10 +148,10 @@ st.markdown("""
     div[data-testid="stSidebar"] { background-color: #1e222d; border-right: 1px solid #2a2e39; }
     .stDataFrame { background-color: #1e222d; border-radius: 8px; }
     h1, h2, h3, h4 { color: #ffffff !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    div[data-testid="stRadio"] > label { display: none; }
     
     .ai-box { background-color: #1a233a; border-left: 5px solid #2962ff; padding: 15px 20px; border-radius: 4px; margin-top: 20px; margin-bottom: 20px;}
     .ai-header { color: #3b82f6; font-weight: 600; font-size: 1.1rem; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;}
+    .xtb-period-label { font-weight: bold; color: #787b86; font-size: 0.85rem; text-transform: uppercase; margin-bottom: -35px; z-index: 10; position: relative; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -202,18 +206,12 @@ with st.sidebar:
 ticker_options = list(st.session_state.portfolio.keys())
 display_options = {t: st.session_state.portfolio[t].name for t in ticker_options}
 
-st.markdown("<div style='margin-bottom: -15px; font-weight: bold; color: #787b86; font-size: 0.85rem; text-transform: uppercase;'>Horyzont czasowy analizy:</div>", unsafe_allow_html=True)
-
 xtb_opts = {
     "1D": "1d", "1W": "5d", "1M": "1mo", "3M": "3mo", "6M": "6mo",
     "YTD": "ytd", "1Y": "1y", "3Y": "3y", "5Y": "5y", "MAX": "max"
 }
 
-selected_period_label = st.radio("Okres:", options=list(xtb_opts.keys()), horizontal=True)
-selected_period = xtb_opts[selected_period_label]
-
-st.divider()
-
+# ZAKŁADKI Z ZINTEGROWANYM HORYZONTEM CZASOWYM
 tab1, tab2, tab3 = st.tabs(["🏠 Strona Główna (O Projekcie)", "📈 Analiza Pojedyncza", "⚖️ Porównywarka Koszyka"])
 
 with tab1:
@@ -230,18 +228,23 @@ with tab1:
     
     ### ⚙️ Instrukcja Obsługi
     * **Zarządzanie Bazą (Menu Lewe):** Użyj wyszukiwarki do inteligentnego załadowania koszyka aktywów i wybierz interesującą Cię rozdzielczość wykresu (Interwał).
-    * **Panel Czasu (Menu Górne):** Wybierz rynkowy zakres czasowy, z którego system ma zaciągnąć szeregi czasowe.
+    * **Panel Czasu (W zakładkach):** Wybierz rynkowy zakres czasowy bezpośrednio w panelu analizy lub porównywarki.
     * **Zakładka [Analiza Pojedyncza]:** Wybierz konkretny instrument w celu przeanalizowania jego rozrzutu, stabilności i zapoznania się z werdyktem naszego Asystenta.
     * **Zakładka [Porównywarka]:** Wybierz od 2 do 5 instrumentów, aby przeprowadzić ich rynkową konfrontację pod kątem efektywności alokacji kapitału.
     """)
 
 with tab2:
+    st.markdown("<div class='xtb-period-label'>HORYZONT CZASOWY ANALIZY:</div>", unsafe_allow_html=True)
+    selected_period_label_t2 = st.radio("Okres T2:", options=list(xtb_opts.keys()), horizontal=True, label_visibility="collapsed", key="radio_tab2")
+    selected_period_t2 = xtb_opts[selected_period_label_t2]
+    
+    st.divider()
     selected_ticker = st.selectbox("🎯 Wybierz instrument bazowy / ETF:", options=ticker_options, format_func=lambda x: display_options[x])
     
     if selected_ticker:
         asset = st.session_state.portfolio[selected_ticker]
         with st.spinner(f"Analiza wolumenu i wyliczanie parametrów algorytmu AI..."):
-            data = st.session_state.engine.get_data(asset.ticker, period=selected_period, interval=selected_interval)
+            data = st.session_state.engine.get_data(asset.ticker, period=selected_period_t2, interval=selected_interval)
             
         if data.empty or len(data) < 2:
             st.error(f"⚠️ Zbyt mała płynność danych dla interwału '{selected_interval_label}' w tym oknie czasowym. Dostosuj parametry.")
@@ -261,7 +264,7 @@ with tab2:
 <div class="ai-box">
     <div class="ai-header">🤖 AI Analiza Fundamentalna i Oceny Momentum</div>
     <div style="color: #d1d4dc; font-size: 0.95rem; line-height: 1.6;">
-{ai_text}
+        {ai_text}
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -291,8 +294,11 @@ with tab2:
             st.pyplot(fig)
 
 with tab3:
-    st.markdown("### ⚖️ Kalkulator Opłacalności Inwestycji")
+    st.markdown("<div class='xtb-period-label'>HORYZONT CZASOWY PORÓWNANIA:</div>", unsafe_allow_html=True)
+    selected_period_label_t3 = st.radio("Okres T3:", options=list(xtb_opts.keys()), horizontal=True, label_visibility="collapsed", key="radio_tab3")
+    selected_period_t3 = xtb_opts[selected_period_label_t3]
     
+    st.divider()
     selected_to_compare = st.multiselect(
         "Wybierz koszyk instrumentów:", 
         options=ticker_options, 
@@ -310,7 +316,7 @@ with tab3:
             ax_comp.set_facecolor('#1e222d')
             
             for idx, t in enumerate(selected_to_compare):
-                df = st.session_state.engine.get_data(t, period=selected_period, interval=selected_interval)
+                df = st.session_state.engine.get_data(t, period=selected_period_t3, interval=selected_interval)
                 if not df.empty and len(df) >= 2:
                     ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(df)
                     total_return = df['Cumulative_Return'].iloc[-1] * 100
@@ -345,7 +351,7 @@ with tab3:
 </div>
 """, unsafe_allow_html=True)
 
-                ax_comp.set_title(f"Dynamika zysku instrumentów bazowych | Okres: {selected_period_label}", fontsize=13, fontweight='bold', color='#ffffff')
+                ax_comp.set_title(f"Dynamika zysku instrumentów bazowych | Okres: {selected_period_label_t3}", fontsize=13, fontweight='bold', color='#ffffff')
                 ax_comp.set_ylabel("Stopa zwrotu (%)", color='#787b86')
                 ax_comp.tick_params(colors='#787b86')
                 legend = ax_comp.legend(loc="upper left", facecolor='#1e222d', edgecolor='#2a2e39')
@@ -357,3 +363,4 @@ with tab3:
                 st.dataframe(comp_df, use_container_width=True)
             else:
                 st.error("Brak poprawnych danych rynkowych do przeliczenia koszyka.")
+            
