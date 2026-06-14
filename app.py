@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-AI_EXCELLENT_THRESHOLD_PCT = 10.0
-AI_NEUTRAL_THRESHOLD_PCT = 0.0
+EXCELLENT_RETURN_THRESHOLD_PCT = 10.0
+NEUTRAL_RETURN_THRESHOLD_PCT = 0.0
 
 class Asset:
     def __init__(self, ticker: str, name: str, asset_type: str):
@@ -499,7 +499,8 @@ with tab4:
                         total_return_pct = result_df["Stopa zwrotu %"].iloc[-1]
                         positive_values = result_df["Wartość portfela"] > 0
                         rolling_max = result_df["Wartość portfela"].where(positive_values).cummax()
-                        drawdown_series = (result_df["Wartość portfela"] / rolling_max) - 1
+                        valid_rolling_max = rolling_max.where(rolling_max > 0)
+                        drawdown_series = (result_df["Wartość portfela"] / valid_rolling_max) - 1
                         max_drawdown = drawdown_series.min(skipna=True) * 100 if drawdown_series.notna().any() else np.nan
 
                         sc1, sc2, sc3, sc4 = st.columns(4)
@@ -512,18 +513,21 @@ with tab4:
                         for ticker, df_ticker in simulation_data.items():
                             close_sub = df_ticker['Close'].loc[common_start:common_end]
                             first_price = close_sub.iloc[0]
-                            last_price = close_sub.iloc[-1]
-                            if first_price > 0 and last_price > 0:
+                            if first_price > 0:
+                                last_price = close_sub.iloc[-1]
+                            else:
+                                last_price = 0
+                            if last_price > 0:
                                 asset_rank.append((display_options[ticker], ((last_price / first_price) - 1) * 100))
                         best_asset = max(asset_rank, key=lambda x: x[1]) if asset_rank else None
-                        drawdown_text = f"{max_drawdown:.2f}%" if pd.notna(max_drawdown) else "brakiem danych"
+                        drawdown_text = f"{max_drawdown:.2f}%" if pd.notna(max_drawdown) else "brak danych"
 
-                        if total_return_pct >= AI_EXCELLENT_THRESHOLD_PCT:
+                        if total_return_pct >= EXCELLENT_RETURN_THRESHOLD_PCT:
                             if best_asset:
                                 ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>, a najsilniejszym składnikiem było <b>{best_asset[0]}</b> ({best_asset[1]:.2f}%)."
                             else:
                                 ai_sim_text = f"🟢 <b>Ocena AI:</b> Strategia była skuteczna. Portfel wygenerował <b>{total_return_pct:.2f}%</b>."
-                        elif total_return_pct >= AI_NEUTRAL_THRESHOLD_PCT:
+                        elif total_return_pct >= NEUTRAL_RETURN_THRESHOLD_PCT:
                             ai_sim_text = f"🟡 <b>Ocena AI:</b> Wynik dodatni, ale umiarkowany. Portfel zakończył symulację na poziomie <b>{total_return_pct:.2f}%</b>. Rozważ wydłużenie horyzontu lub zmianę koszyka."
                         else:
                             ai_sim_text = f"🔴 <b>Ocena AI:</b> Symulacja zakończyła się stratą <b>{total_return_pct:.2f}%</b>. Największe ryzyko było widoczne przy obsunięciu <b>{drawdown_text}</b>."
