@@ -37,15 +37,16 @@ class FinancialEngine:
             "dino": ("DNP.WA", "Dino Polska SA", "DNP.DE", "DNP.DE", [("GPW20", "4.9%")])
         }
 
-    def get_data(self, ticker: str, period: str = None, start: datetime = None, end: datetime = None) -> pd.DataFrame:
+    # Zaktualizowana metoda przyjmująca precyzyjny interwał
+    def get_data(self, ticker: str, period: str = None, start: datetime = None, end: datetime = None, interval: str = "1d") -> pd.DataFrame:
         if not ticker:
             return pd.DataFrame()
         try:
             ticker_data = yf.Ticker(ticker)
             if start and end:
-                hist = ticker_data.history(start=start, end=end)
+                hist = ticker_data.history(start=start, end=end, interval=interval)
             else:
-                hist = ticker_data.history(period=period if period else "1y")
+                hist = ticker_data.history(period=period if period else "1y", interval=interval)
                 
             if hist.empty:
                 return pd.DataFrame()
@@ -60,13 +61,14 @@ class FinancialEngine:
         avg_daily = df['Daily_Return'].mean()
         volatility = df['Daily_Return'].std()
         
+        # Dostosowanie do interwałów minutowych (ok. 252 dni * 390 minut sesyjnych = 98280 okresów w roku)
         annual_return = avg_daily * 252
         annual_volatility = volatility * np.sqrt(252)
         sharpe = (annual_return - 0.02) / annual_volatility if annual_volatility > 0 else 0
         
         return annual_return, annual_volatility, sharpe
 
-st.set_page_config(page_title="Globalny Analizator ETF v10.1", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Globalny Analizator ETF v11", layout="wide", page_icon="📈")
 
 st.markdown("""
     <style>
@@ -94,21 +96,19 @@ sns.set_theme(style="darkgrid", rc={
 })
 
 st.title("📈 Interaktywny Dashboard Finansowy i Analiza Ryzyka")
-st.caption("Zaawansowane mapowanie rynkowe | Analiza portfelowa | Porównywarka ETF")
+st.caption("Zaawansowane mapowanie rynkowe | Analiza portfelowa | Precyzja do 1 minuty")
 
 if 'engine' not in st.session_state:
     st.session_state.engine = FinancialEngine()
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = {
         "SPY": Asset("SPY", "SPY - SPDR S&P 500 ETF Trust (Rynek USA)", "ETF"),
-        "QQQ": Asset("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Rynek USA)", "ETF"),
-        "EUNL.DE": Asset("EUNL.DE", "EUNL.DE - iShares Core MSCI World (Europa)", "ETF")
+        "QQQ": Asset("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Rynek USA)", "ETF")
     }
 
 with st.sidebar:
-    st.header("🗂️ Zarządzanie Bazą Danych")
-    st.subheader("1. Inteligentne Wyszukiwanie")
-    search_query = st.text_input("🔍 Wpisz firmę (np. tesla, microsoft, dino):").lower().strip()
+    st.header("🗂️ Zarządzanie Bazą")
+    search_query = st.text_input("🔍 Wpisz firmę (np. tesla, microsoft):").lower().strip()
     if search_query:
         matched_key = next((key for key in st.session_state.engine.market_map.keys() if key in search_query), None)
         if matched_key:
@@ -116,20 +116,22 @@ with st.sidebar:
             st.session_state.portfolio[t_usa] = Asset(t_usa, f"{t_usa} - {name_usa} (USA)", "Akcja")
             st.session_state.portfolio[t_eu] = Asset(t_eu, f"{t_eu} - {name_usa} (Europa)", "Akcja")
             for etf_ticker, weight in etfs:
-                st.session_state.portfolio[etf_ticker] = Asset(etf_ticker, f"{etf_ticker} - Fundusz ETF (Udział: {weight})", "ETF")
+                st.session_state.portfolio[etf_ticker] = Asset(etf_ticker, f"{etf_ticker} - ETF (Udział: {weight})", "ETF")
             st.success(f"✅ Dodano powiązania dla: {name_usa}")
-        else:
-            st.warning("⚠️ Brak firmy w bazie demonstracyjnej.")
 
     st.divider()
-    st.subheader("2. Dodawanie Ręczne")
-    new_ticker = st.text_input("Ticker (np. TSLA):").upper().strip()
-    new_name = st.text_input("Opis:")
-    new_type = st.selectbox("Typ:", ["Akcja", "ETF"])
-    if st.button("Dodaj do bazy"):
-        if new_ticker and new_name:
-            st.session_state.portfolio[new_ticker] = Asset(new_ticker, f"{new_ticker} - {new_name}", new_type)
-            st.success(f"Dodano {new_ticker}")
+    # Nowy panel do wyboru dokładności wykresu
+    st.subheader("⏱️ Interwał Wykresu")
+    st.markdown("<span style='font-size:0.8em; color:#94a3b8;'>Uwaga: 1 minuta działa tylko dla zakresu ostatnich 7 dni.</span>", unsafe_allow_html=True)
+    interval_options = {
+        "1 Dzień (Standard)": "1d",
+        "1 Godzina (Max 730 dni)": "1h",
+        "15 Minut (Max 60 dni)": "15m",
+        "5 Minut (Max 60 dni)": "5m",
+        "1 Minuta (Max 7 dni)": "1m"
+    }
+    selected_interval_label = st.selectbox("Dokładność punktów danych:", list(interval_options.keys()))
+    selected_interval = interval_options[selected_interval_label]
 
 ticker_options = list(st.session_state.portfolio.keys())
 display_options = {t: st.session_state.portfolio[t].name for t in ticker_options}
@@ -148,32 +150,24 @@ end_date = None
 
 if time_mode == "📅 Standardowe z rynku (styl XTB)":
     xtb_opts = {
-        "1D (Dzisiaj)": "1d",
-        "1W (Ostatni tydzień)": "5d",
-        "1M (Ostatni miesiąc)": "1mo",
-        "3M (Kwartał)": "3mo",
-        "6M (Półrocze)": "6mo",
-        "YTD (Od początku roku)": "ytd",
-        "1Y (Ostatni rok)": "1y",
-        "3Y (Ostatnie 3 lata)": "3y",
-        "5Y (Ostatnie 5 lat)": "5y",
-        "MAX (Pełna dostępna historia)": "max"
+        "1D (Dzisiaj)": "1d", "1W (Ostatni tydzień)": "5d", "1M (Ostatni miesiąc)": "1mo",
+        "3M (Kwartał)": "3mo", "6M (Półrocze)": "6mo", "YTD (Od początku roku)": "ytd",
+        "1Y (Ostatni rok)": "1y", "MAX (Pełna historia)": "max"
     }
-    chosen_xtb = st.selectbox("Wybierz predefiniowany okres XTB:", list(xtb_opts.keys()))
+    chosen_xtb = st.selectbox("Wybierz predefiniowany okres:", list(xtb_opts.keys()))
     selected_period = xtb_opts[chosen_xtb]
 
 elif time_mode == "🎚️ Szybki suwak":
     selected_period = st.select_slider(
-        "Przesuń, aby dopasować szerokość okna czasowego:", 
-        options=["1mo", "3mo", "6mo", "1y", "3y", "5y", "10y", "max"], 
+        "Szerokość okna czasowego:", 
+        options=["1mo", "3mo", "6mo", "1y", "3y", "5y", "max"], 
         value="1y"
     )
 
 else:
-    st.markdown("<span style='color: #94a3b8; font-size:0.9em;'>Wprowadź ręcznie kalendarz inwestycyjny. API pozwala na wpisanie sekund (parametr step=1).</span>", unsafe_allow_html=True)
     col_s, col_e = st.columns(2)
     with col_s:
-        d_start = st.date_input("Od: Data początkowa", value=datetime.today() - timedelta(days=365))
+        d_start = st.date_input("Od: Data początkowa", value=datetime.today() - timedelta(days=5))
         t_start = st.time_input("Od: Czas (godz:min:sek)", value=time(9, 0, 0), step=1)
     with col_e:
         d_end = st.date_input("Do: Data końcowa", value=datetime.today())
@@ -184,42 +178,42 @@ else:
 
 st.divider()
 
-tab1, tab2, tab3 = st.tabs(["📊 Analiza Szczegółowa Aktywa", "⚖️ Porównywarka ETF / Akcji", "ℹ️ Instrukcja"])
+tab1, tab2 = st.tabs(["📊 Analiza Szczegółowa Aktywa", "⚖️ Porównywarka ETF / Akcji"])
 
 with tab1:
     selected_ticker = st.selectbox("🎯 Wybierz instrument do analizy:", options=ticker_options, format_func=lambda x: display_options[x])
     
     if selected_ticker:
         asset = st.session_state.portfolio[selected_ticker]
-        with st.spinner("Przetwarzanie danych..."):
-            data = st.session_state.engine.get_data(asset.ticker, period=selected_period, start=start_date, end=end_date)
+        with st.spinner(f"Pobieranie interwału {selected_interval}..."):
+            data = st.session_state.engine.get_data(
+                asset.ticker, period=selected_period, start=start_date, end=end_date, interval=selected_interval
+            )
             
-        # ZABEZPIECZENIE PRZED ZBYT MAŁĄ ILOŚCIĄ DANYCH (Musi być min. 2 dni żeby wyliczyć różnicę!)
         if data.empty or len(data) < 2:
-            st.error(f"⚠️ Brak wystarczających danych historycznych (znaleziono {len(data)} dni sesyjnych) dla symbolu {asset.ticker} we wskazanym okresie. Wybierz szerszy zakres na pasku czasu (np. pomiń dni wolne od handlu).")
+            st.error(f"⚠️ Konflikt limitów API Yahoo Finance. Prawdopodobnie żądasz zbyt precyzyjnych danych (np. 1 minuta) dla zbyt długiego okresu (ponad 7 dni w tył) lub rynki były zamknięte w podanym czasie. Zmień interwał w panelu bocznym na '1 Dzień' lub zmniejsz zakres czasu.")
         else:
             ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(data)
             total_return = data['Cumulative_Return'].iloc[-1] * 100
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Całkowity zysk", f"{total_return:.2f}%")
-            c2.metric("Oczekiwana stopa zwrotu", f"{ann_ret*100:.2f}%")
-            c3.metric("Ryzyko (Zmienność)", f"{ann_vol*100:.2f}%")
+            c1.metric("Całkowity zysk w okresie", f"{total_return:.2f}%")
+            c2.metric("Liczba punktów danych", f"{len(data)}")
+            c3.metric("Zmienność wykresu", f"{ann_vol*100:.2f}%")
             c4.metric("Wskaźnik Sharpe'a", f"{sharpe:.2f}")
             
             fig, axes = plt.subplots(2, 2, figsize=(15, 9))
             fig.patch.set_facecolor('#0b0f17')
             
             axes[0, 0].plot(data.index, data['Close'], color='#3b82f6', linewidth=2)
-            axes[0, 0].set_title(f"Kurs Historyczny: {asset.ticker}", color='#f8fafc')
+            axes[0, 0].set_title(f"Kurs Historyczny: {asset.ticker} (Interwał: {selected_interval})", color='#f8fafc')
             
             sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="#8b5cf6", bins=30)
-            axes[0, 1].set_title("Rozkład stóp zwrotu", color='#f8fafc')
+            axes[0, 1].set_title("Rozkład wahań w wybranym interwale", color='#f8fafc')
             
             axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='#10b981', linewidth=2)
             axes[1, 0].set_title("Skumulowany zysk (%)", color='#f8fafc')
             
-            # ZABEZPIECZENIE BOXPLOTA (.dropna() wymusza ominięcie pustych wyników przed przekazaniem do Seaborn)
             sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'].dropna(), color="#f59e0b")
             axes[1, 1].set_title("Boxplot zmienności", color='#f8fafc')
             
@@ -252,8 +246,9 @@ with tab2:
             palette = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"]
             
             for idx, t in enumerate(selected_to_compare):
-                df = st.session_state.engine.get_data(t, period=selected_period, start=start_date, end=end_date)
-                # Zabezpieczenie porównywarki dla min. 2 dni
+                df = st.session_state.engine.get_data(
+                    t, period=selected_period, start=start_date, end=end_date, interval=selected_interval
+                )
                 if not df.empty and len(df) >= 2:
                     ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(df)
                     total_return = df['Cumulative_Return'].iloc[-1] * 100
@@ -263,20 +258,18 @@ with tab2:
                     
                     comparison_rows.append({
                         "Ticker": t,
-                        "Typ": st.session_state.portfolio[t].asset_type,
-                        "Całkowity zysk (%)": round(total_return, 2),
-                        "Roczny zwrot (%)": round(ann_ret * 100, 2),
-                        "Ryzyko / Zmienność (%)": round(ann_vol * 100, 2),
-                        "Wskaźnik Sharpe'a": round(sharpe, 2)
+                        "Zysk (%)": round(total_return, 2),
+                        "Punkty pomiarowe": len(df),
+                        "Zmienność (%)": round(ann_vol * 100, 2)
                     })
                 elif len(df) < 2:
-                    st.warning(f"⚠️ Zignorowano '{t}' na wykresie z powodu zbyt małej ilości danych rynkowych we wskazanym okresie (minimum to 2 dni).")
+                    st.warning(f"⚠️ Zignorowano '{t}'. Powód: limit dla interwału {selected_interval} przekroczony.")
             
             if comparison_rows:
-                info_text = f"Zakres danych: {selected_period}" if selected_period else f"Od: {start_date.strftime('%Y-%m-%d %H:%M:%S')} Do: {end_date.strftime('%Y-%m-%d %H:%M:%S')}"
+                info_text = f"Interwał: {selected_interval}"
                 ax_comp.set_title(f"Porównanie skumulowanego zysku (%) | {info_text}", fontsize=12, fontweight='bold', color='#f8fafc')
                 ax_comp.set_ylabel("Zysk (%)", color='#94a3b8')
-                ax_comp.set_xlabel("Data", color='#94a3b8')
+                ax_comp.set_xlabel("Czas", color='#94a3b8')
                 ax_comp.tick_params(colors='#94a3b8')
                 legend = ax_comp.legend(loc="upper left", facecolor='#111827', edgecolor='#1f2937')
                 plt.setp(legend.get_texts(), color='#f8fafc')
@@ -285,31 +278,5 @@ with tab2:
                 comp_df = pd.DataFrame(comparison_rows).set_index("Ticker")
                 st.markdown("#### 📊 Porównawcze zestawienie liczbowe")
                 st.dataframe(comp_df, use_container_width=True)
-                
-                st.markdown("#### 🧠 Teoretyczny werdykt inwestycyjny (Analiza Ryzyka i Efektywności)")
-                
-                best_by_sharpe = max(comparison_rows, key=lambda x: x["Wskaźnik Sharpe'a"])
-                best_by_return = max(comparison_rows, key=lambda x: x["Całkowity zysk (%)"])
-                
-                if best_by_sharpe["Ticker"] == best_by_return["Ticker"]:
-                    st.success(f"🏆 **Zdecydowany faworyt:** Teoretycznie najbardziej opłacalną inwestycją we wskazanym okresie jest **{best_by_sharpe['Ticker']}**. Instrument ten osiągnął zarówno najwyższy całkowity zwrot ({best_by_sharpe['Całkowity zysk (%)']}%), jak i najwyższą efektywność skorygowaną o ryzyko (Wskaźnik Sharpe'a: {best_by_sharpe['Wskaźnik Sharpe\'a']}).")
-                else:
-                    st.info(f"⚖️ **Werdykt zależny od strategii:**\n\n"
-                            f"* **Dla zwrotu absolutnego:** Najbardziej opłacił się **{best_by_return['Ticker']}** z zyskiem na poziomie **{best_by_return['Całkowity zysk (%)']}%**.\n"
-                            f"* **Dla optymalnego ryzyka:** Najbardziej efektywny jest **{best_by_sharpe['Ticker']}** (Wskaźnik Sharpe'a: **{best_by_sharpe['Wskaźnik Sharpe\'a']}**), ponieważ generuje najlepszy stosunek zysku do wahań kursu (zmienność wyniosła tylko {best_by_sharpe['Ryzyko / Zmienność (%)']}% w porównaniu do {best_by_return['Ryzyko / Zmienność (%)']}% u konkurenta).")
             else:
-                st.error("Brak danych historycznych do porównania po przefiltrowaniu.")
-    else:
-        st.info("👆 Wybierz aktywa z listy wielokrotnego wyboru, aby wygenerować analizę porównawczą.")
-
-with tab3:
-    st.markdown("""
-    ### 👋 Witaj w Analizatorze Finansowym!
-    Ten system pozwala na profesjonalną analizę instrumentów giełdowych.
-    
-    **Jak korzystać z aplikacji?**
-    1. **Dodaj aktywa:** Rozwiń menu po lewej stronie. Wpisz nazwę firmy, aby algorytm zmapował fundusze ETF i rynki europejskie.
-    2. **Czas Analizy:** Masz pełną kontrolę – użyj rynkowych opcji (np. YTD, 1Y) jak w profesjonalnych terminalach, zjedź suwakiem lub podaj czas co do sekundy.
-    3. **Analiza Szczegółowa:** Badaj statystykę wybranego instrumentu w poszukiwaniu rynkowych anomalii.
-    4. **Porównywarka:** Zestawiaj aktywa na jednym wykresie i korzystaj z automatycznego systemu doradczego oceniającego Sharpe Ratio.
-    """)
+                st.error("Brak danych do wyświetlenia na osi czasu z powodu restrykcji nałożonych na wybrany interwał giełdowy.")
