@@ -11,7 +11,6 @@ class Asset:
         self.name = name
         self.asset_type = asset_type
 
-# 🛠️ Formatyzacja w stylu XTB (np. AAPL.US, CDR.PL)
 def format_xtb(ticker: str, base_name: str) -> str:
     ticker_upper = ticker.upper()
     if "." not in ticker_upper:
@@ -23,7 +22,6 @@ def format_xtb(ticker: str, base_name: str) -> str:
 
 class FinancialEngine:
     def __init__(self):
-        # Baza z precyzyjnie opisanymi wagami (Helper dla Inwestora)
         self.market_map = {
             "nvidia": ("NVDA", "NVIDIA Corp", "NVD.DE", "NVIDIA Corp", [("SMH", "VanEck Semiconductor ETF (Waga NVDA: 24.1%)"), ("QDVE.DE", "iShares S&P 500 Tech (Waga NVDA: 6.2%)")]),
             "nvda": ("NVDA", "NVIDIA Corp", "NVD.DE", "NVIDIA Corp", [("SMH", "VanEck Semiconductor ETF (Waga NVDA: 24.1%)"), ("QDVE.DE", "iShares S&P 500 Tech (Waga NVDA: 6.2%)")]),
@@ -39,12 +37,32 @@ class FinancialEngine:
             "alphabet": ("GOOGL", "Alphabet Inc", "ABEA.DE", "Alphabet Inc", [("XLC", "Communication Services (Waga GOOGL: 12.2%)")]),
             "tesla": ("TSLA", "Tesla Inc", "TL0.DE", "Tesla Inc", [("XLY", "Consumer Discretionary (Waga TSLA: 14.2%)")]),
             "tsla": ("TSLA", "Tesla Inc", "TL0.DE", "Tesla Inc", [("XLY", "Consumer Discretionary (Waga TSLA: 14.2%)")]),
-            "netflix": ("NFLX", "Netflix Inc", "NFC.DE", "Netflix Inc", [("XLC", "Communication Services (Waga NFLX: 5.1%)"), ("PBS", "Invesco Media ETF (Waga NFLX: 5.4%)")]),
+            "netflix": ("NFLX", "Netflix Inc", "NFC.DE", "Netflix Inc", [("XLC", "Communication Services (Waga NFLX: 5.1%)")]),
             "nflx": ("NFLX", "Netflix Inc", "NFC.DE", "Netflix Inc", [("XLC", "Communication Services (Waga NFLX: 5.1%)")]),
             "cd projekt": ("CDR.WA", "CD Projekt SA", "2CD.DE", "CD Projekt SA", [("ETFW20L.WA", "Beta ETF WIG20TR (Waga CDR: 5.1%)")]),
             "cdr": ("CDR.WA", "CD Projekt SA", "2CD.DE", "CD Projekt SA", [("ETFW20L.WA", "Beta ETF WIG20TR (Waga CDR: 5.1%)")]),
             "orlen": ("PKN.WA", "ORLEN SA", "PKN.DE", "ORLEN SA", [("ETFW20L.WA", "Beta ETF WIG20TR (Waga PKN: 12.4%)")]),
             "dino": ("DNP.WA", "Dino Polska SA", "DNP.DE", "Dino Polska SA", [("ETFW20L.WA", "Beta ETF WIG20TR (Waga DNP: 4.9%)")])
+        }
+
+        # 🤖 Baza Wiedzy AI (Profile spółek i funduszy)
+        self.ai_profiles = {
+            "NVDA": "Lider na rynku procesorów graficznych (GPU) i układów sztucznej inteligencji. Dostarcza kluczową infrastrukturę dla modeli takich jak ChatGPT.",
+            "NVD.DE": "Europejski odpowiednik notowań NVIDIA Corp., wyceniany w walucie Euro na giełdzie Xetra.",
+            "AAPL": "Globalny gigant technologiczny produkujący elektronikę użytkową (iPhone, Mac) oraz rozwijający niezwykle rentowny ekosystem usług cyfrowych.",
+            "APC.DE": "Europejski odpowiednik notowań Apple Inc., wyceniany w walucie Euro na giełdzie Xetra.",
+            "MSFT": "Jedna z największych korporacji technologicznych globu. Dominuje w sektorze oprogramowania, chmury obliczeniowej (Azure) oraz integracji AI z biznesem.",
+            "AMZN": "Lider branży e-commerce oraz największy na świecie dostawca usług w chmurze (AWS), co zapewnia firmie silną dywersyfikację przychodów.",
+            "META": "Właściciel największych platform społecznościowych (Facebook, Instagram, WhatsApp). Lider rynku reklamy cyfrowej z silnym naciskiem na rozwój AI.",
+            "GOOGL": "Dominator rynku wyszukiwarek internetowych i cyfrowej reklamy (Google, YouTube) oraz potęga w sektorze innowacji sztucznej inteligencji.",
+            "TSLA": "Pionier i lider globalnego rynku samochodów elektrycznych (EV) oraz technologii autonomicznego prowadzenia i magazynowania czystej energii.",
+            "NFLX": "Największa na świecie platforma streamingowa. Rewolucjonizuje sposób dystrybucji i produkcji filmów oraz seriali oryginalnych.",
+            "CDR.WA": "Największe polskie studio produkujące gry wideo o zasięgu globalnym, znane głównie z serii 'Wiedźmin' oraz 'Cyberpunk 2077'.",
+            "PKN.WA": "Największy polski koncern multienergetyczny, posiadający rafinerie w Polsce, Czechach i na Litwie oraz rozbudowaną sieć detaliczną.",
+            "DNP.WA": "Polska sieć supermarketów, jedna z najszybciej rozwijających się firm w sektorze handlu detalicznego na rodzimym rynku.",
+            "SPY": "Najpopularniejszy na świecie fundusz ETF śledzący indeks S&P 500. Daje zdywersyfikowaną ekspozycję na 500 największych amerykańskich przedsiębiorstw.",
+            "QQQ": "Fundusz ETF oparty na indeksie Nasdaq-100. Skupia się wyłącznie na spółkach niefinansowych, co czyni go potężnym narzędziem inwestowania w Big Tech.",
+            "EUNL.DE": "iShares Core MSCI World. Fundusz dający zdywersyfikowaną ekspozycję na akcje rynków rozwinięte z całego świata."
         }
 
     def get_data(self, ticker: str, period: str, interval: str = "1d") -> pd.DataFrame:
@@ -81,33 +99,67 @@ class FinancialEngine:
         
         return annual_return, annual_volatility, sharpe
 
+    # 🤖 Funkcja generująca tekstową analizę AI
+    def generate_ai_report(self, ticker: str, df: pd.DataFrame, sharpe: float, total_return: float) -> str:
+        # 1. Pobieranie opisu
+        base_ticker = ticker.split(".")[0] if "." in ticker and not ticker.endswith(".WA") else ticker
+        description = self.ai_profiles.get(base_ticker, "Fundusz inwestycyjny ETF pozwalający na bezpieczniejszą, zdywersyfikowaną alokację kapitału w wybrany koszyk aktywów.")
+        
+        # 2. Analiza ostatnich akcji (Momentum z ostatnich 5 świec)
+        momentum = "neutralne"
+        if len(df) > 5:
+            last_price = df['Close'].iloc[-1]
+            old_price = df['Close'].iloc[-5]
+            short_trend = ((last_price - old_price) / old_price) * 100
+            if short_trend > 2:
+                momentum = f"silne wzrostowe (+{short_trend:.1f}% w ostatnich interwałach)"
+            elif short_trend < -2:
+                momentum = f"spadkowe (korekta {short_trend:.1f}% w ostatnich interwałach)"
+            else:
+                momentum = f"konsolidacyjne (brak wyraźnych odchyleń cenowych)"
+
+        # 3. Zdolność inwestycyjna (Werdykt Sharpe'a i zwrotu)
+        verdict = ""
+        if sharpe >= 1.0 and total_return > 0:
+            verdict = "🟢 **Ocena Inwestycyjna AI:** BARDZO WYSOKA ZDOLNOŚĆ. Aktywo wykazuje rewelacyjny stosunek zysku do ponoszonego ryzyka. Rynek aktualnie bardzo sprzyja temu instrumentowi, a inwestorzy otrzymują wysoką premię za każdy ułamek procenta zmienności."
+        elif sharpe > 0 and total_return > 0:
+            verdict = "🟡 **Ocena Inwestycyjna AI:** UMIARKOWANA ZDOLNOŚĆ. Aktywo generuje zyski, jednak wymaga akceptacji standardowego ryzyka rynkowego. Inwestycja jest opłacalna, ale zaleca się dokładne monitorowanie przyszłych sesji."
+        else:
+            verdict = "🔴 **Ocena Inwestycyjna AI:** NISKA ZDOLNOŚĆ (RYZYKO). W badanym oknie czasowym zmienność lub straty kapitałowe przewyższają oczekiwane zyski z inwestycji wolnej od ryzyka. Zaleca się wstrzymanie kapitału lub potraktowanie tego jako okazji do zakupów w dołku dla strategii długoterminowych."
+
+        # Składanie finalnego raportu
+        report = f"""
+**O instrumencie:** {description}
+
+**Ostatnie akcje (Momentum rynku):** W końcowej fazie analizowanego okresu zaobserwowano momentum **{momentum}**. Pokazuje to aktualne nastawienie kapitału spekulacyjnego wobec tej pozycji.
+
+{verdict}
+"""
+        return report
+
 st.set_page_config(page_title="XTB Helper Pro", layout="wide", page_icon="📊")
 
-# 🎨 KOLORYSTYKA XTB (xStation 5)
 st.markdown("""
     <style>
     .stApp { background-color: #131722; color: #d1d4dc; }
     .stApp [data-testid="stHeader"] { background-color: transparent; }
-    
-    /* Kafelki metryk w stylu XTB */
     .stMetric { background-color: #1e222d; padding: 15px; border-radius: 8px; border: 1px solid #2a2e39; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
     div[data-testid="stMetricValue"] { color: #ffffff; font-weight: 600; }
     div[data-testid="stMetricDelta"] svg { fill: currentColor; }
-    
-    /* Zakładki i nawigacja */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: #131722; }
     .stTabs [data-baseweb="tab"] { height: 45px; color: #787b86; background-color: #1e222d; border-radius: 4px 4px 0px 0px; padding: 10px 20px; border: 1px solid #2a2e39; border-bottom: none; }
     .stTabs [aria-selected="true"] { background-color: #2a2e39; color: #ffffff; font-weight: bold; border-top: 2px solid #2962ff; }
-    
-    /* Panele boczne i tabele */
     div[data-testid="stSidebar"] { background-color: #1e222d; border-right: 1px solid #2a2e39; }
     .stDataFrame { background-color: #1e222d; border-radius: 8px; }
     h1, h2, h3, h4 { color: #ffffff !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     div[data-testid="stRadio"] > label { display: none; }
+    
+    /* Stylizacja sekcji AI */
+    .ai-box { background-color: #1a233a; border-left: 5px solid #2962ff; padding: 15px 20px; border-radius: 4px; margin-top: 20px; margin-bottom: 20px;}
+    .ai-header { color: #3b82f6; font-weight: 600; font-size: 1.1rem; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;}
     </style>
     """, unsafe_allow_html=True)
 
-# Stylizacja wykresów pod ciemne tło platform tradingowych
 sns.set_theme(style="darkgrid", rc={
     "axes.facecolor": "#1e222d",
     "figure.facecolor": "#131722",
@@ -120,7 +172,7 @@ sns.set_theme(style="darkgrid", rc={
 })
 
 st.title("📊 Terminal Analityczny (XTB Helper)")
-st.caption("Ocena ekspozycji | Analiza portfelowa | Horyzonty inwestycyjne XTB")
+st.caption("Ocena ekspozycji | Raport AI Momentum | Horyzonty inwestycyjne XTB")
 
 st.session_state.engine = FinancialEngine()
 if 'portfolio' not in st.session_state:
@@ -131,7 +183,7 @@ if 'portfolio' not in st.session_state:
 
 with st.sidebar:
     st.header("🗂️ Zarządzanie Bazą")
-    search_query = st.text_input("🔍 Wpisz spółkę docelową (np. tesla, cd projekt):").lower().strip()
+    search_query = st.text_input("🔍 Wpisz spółkę docelową (np. tesla, orlen):").lower().strip()
     if search_query:
         matched_key = next((key for key in st.session_state.engine.market_map.keys() if key in search_query), None)
         if matched_key:
@@ -142,7 +194,7 @@ with st.sidebar:
             for etf_ticker, etf_name in etfs:
                 st.session_state.portfolio[etf_ticker] = Asset(etf_ticker, format_xtb(etf_ticker, etf_name), "ETF")
                 
-            st.success(f"✅ Zmapowano instrument bazowy oraz fundusze oparte o {t_usa}.")
+            st.success(f"✅ Zmapowano rynki oraz algorytmy ETF dla spółki {t_usa}.")
 
     st.divider()
     st.subheader("⏱️ Interwał Wykresu")
@@ -178,7 +230,7 @@ with tab1:
     
     if selected_ticker:
         asset = st.session_state.portfolio[selected_ticker]
-        with st.spinner(f"Ładowanie danych rynkowych..."):
+        with st.spinner(f"Analiza wolumenu i wyliczanie parametrów algorytmu AI..."):
             data = st.session_state.engine.get_data(
                 asset.ticker, period=selected_period, interval=selected_interval
             )
@@ -190,19 +242,27 @@ with tab1:
             total_return = data['Cumulative_Return'].iloc[-1] * 100
             
             c1, c2, c3, c4 = st.columns(4)
-            # Delta w Streamlit automatycznie koloruje na zielono/czerwono
             c1.metric("Zwrot (Okres Analizy)", f"{total_return:.2f}%", delta=f"{total_return:.2f}%")
             c2.metric("Oczekiwany Roczny Zwrot", f"{ann_ret*100:.2f}%", delta=f"{ann_ret*100:.2f}%")
             c3.metric("Zmienność (Ryzyko)", f"{ann_vol*100:.2f}%", delta=f"Ochylenie", delta_color="off")
             
-            # Kolorowanie Sharpe'a zależnie od progu
             sharpe_color = "normal" if sharpe > 0 else "inverse"
             c4.metric("Wskaźnik Sharpe'a", f"{sharpe:.2f}", delta="Risk/Reward", delta_color="off")
+            
+            # 🤖 SEKCJA AI - ZAPREZENTOWANIE WNIOSKÓW 
+            ai_text = st.session_state.engine.generate_ai_report(asset.ticker, data, sharpe, total_return)
+            st.markdown(f"""
+            <div class="ai-box">
+                <div class="ai-header">🤖 AI Analiza Fundamentalna i Oceny Momentum</div>
+                <div style="color: #d1d4dc; font-size: 0.95rem; line-height: 1.6;">
+                    {ai_text}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             fig, axes = plt.subplots(2, 2, figsize=(15, 9))
             fig.patch.set_facecolor('#131722')
             
-            # Główny wykres cenowy - niebieski XTB
             axes[0, 0].plot(data.index, data['Close'], color='#2962ff', linewidth=1.5)
             axes[0, 0].fill_between(data.index, data['Close'], data['Close'].min(), color='#2962ff', alpha=0.1)
             axes[0, 0].set_title(f"Kurs: {asset.name}", color='#ffffff', fontsize=11)
@@ -210,7 +270,6 @@ with tab1:
             sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="#26a69a", bins=30)
             axes[0, 1].set_title("Rozkład odchyleń cenowych", color='#ffffff', fontsize=11)
             
-            # Kolor skumulowanego zysku zależny od tego czy zarabiamy czy tracimy
             profit_color = '#26a69a' if total_return >= 0 else '#ef5350'
             axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color=profit_color, linewidth=2)
             axes[1, 0].set_title("Skumulowana krzywa kapitału (%)", color='#ffffff', fontsize=11)
@@ -243,7 +302,6 @@ with tab2:
             ax_comp.set_facecolor('#1e222d')
             
             comparison_rows = []
-            # Paleta inspirowana tradingowymi neonami
             palette = ["#2962ff", "#26a69a", "#ff9800", "#ef5350", "#9c27b0"]
             
             for idx, t in enumerate(selected_to_compare):
