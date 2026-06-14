@@ -11,29 +11,43 @@ class Asset:
         self.name = name
         self.asset_type = asset_type
 
+# 🛠️ Funkcja formatująca nazwy w stylu terminala XTB
+def format_xtb(ticker: str, base_name: str) -> str:
+    ticker_upper = ticker.upper()
+    if "." not in ticker_upper:
+        # Akcje USA (np. AAPL -> AAPL.US)
+        return f"{ticker_upper}.US - {base_name}"
+    elif ticker_upper.endswith(".WA"):
+        # Akcje GPW Polska (np. CDR.WA -> CDR.PL)
+        return f"{ticker_upper.replace('.WA', '.PL')} - {base_name}"
+    else:
+        # Pozostałe (np. Niemcy Xetra .DE) pozostają bez zmian w prefiksie
+        return f"{ticker_upper} - {base_name}"
+
 class FinancialEngine:
     def __init__(self):
+        # Baza zaktualizowana do czystych nazw dla formatowania XTB
         self.market_map = {
-            "nvidia": ("NVDA", "NVIDIA Corp", "NVD.DE", "NVD.DE", [("SMH", "24.1%"), ("SOXX", "8.5%"), ("QDVE.DE", "6.2%")]),
-            "nvda": ("NVDA", "NVIDIA Corp", "NVD.DE", "NVD.DE", [("SMH", "24.1%"), ("SOXX", "8.5%")]),
-            "apple": ("AAPL", "Apple Inc", "APC.DE", "APC.DE", [("XLK", "22.3%"), ("QDVE.DE", "18.4%"), ("QQQ", "8.9%")]),
-            "aapl": ("AAPL", "Apple Inc", "APC.DE", "APC.DE", [("XLK", "22.3%"), ("QDVE.DE", "18.4%")]),
-            "microsoft": ("MSFT", "Microsoft Corp", "MSF.DE", "MSF.DE", [("XLK", "21.1%"), ("QDVE.DE", "19.1%"), ("QQQ", "8.6%")]),
-            "msft": ("MSFT", "Microsoft Corp", "MSF.DE", "MSF.DE", [("XLK", "21.1%"), ("QDVE.DE", "19.1%")]),
-            "amazon": ("AMZN", "Amazon.com Inc", "AMZ.DE", "AMZ.DE", [("XLY", "22.5%"), ("QQQ", "5.1%")]),
-            "amzn": ("AMZN", "Amazon.com Inc", "AMZ.DE", "AMZ.DE", [("XLY", "22.5%")]),
-            "meta": ("META", "Meta Platforms Inc", "FB2A.DE", "FB2A.DE", [("XLC", "22.8%"), ("QQQ", "7.2%")]),
-            "facebook": ("META", "Meta Platforms Inc", "FB2A.DE", "FB2A.DE", [("XLC", "22.8%")]),
-            "google": ("GOOGL", "Alphabet Inc (Google)", "ABEA.DE", "ABEA.DE", [("XLC", "12.2%"), ("QQQ", "4.8%")]),
-            "alphabet": ("GOOGL", "Alphabet Inc (Google)", "ABEA.DE", "ABEA.DE", [("XLC", "12.2%")]),
-            "tesla": ("TSLA", "Tesla Inc", "TL0.DE", "TL0.DE", [("XLY", "14.2%"), ("QQQ", "2.9%")]),
-            "tsla": ("TSLA", "Tesla Inc", "TL0.DE", "TL0.DE", [("XLY", "14.2%")]),
-            "netflix": ("NFLX", "Netflix Inc", "NFC.DE", "NFC.DE", [("XLC", "5.1%"), ("PBS", "5.45%")]),
-            "nflx": ("NFLX", "Netflix Inc", "NFC.DE", "NFC.DE", [("XLC", "5.1%")]),
-            "cd projekt": ("CDR.WA", "CD Projekt SA", "2CD.DE", "2CD.DE", [("GPW20", "5.15%")]),
-            "cdr": ("CDR.WA", "CD Projekt SA", "2CD.DE", "2CD.DE", [("GPW20", "5.15%")]),
-            "orlen": ("PKN.WA", "ORLEN SA", "PKN.DE", "PKN.DE", [("GPW20", "12.4%")]),
-            "dino": ("DNP.WA", "Dino Polska SA", "DNP.DE", "DNP.DE", [("GPW20", "4.9%")])
+            "nvidia": ("NVDA", "NVIDIA Corp", "NVD.DE", "NVIDIA Corp", [("SMH", "VanEck Semiconductor ETF"), ("QDVE.DE", "iShares S&P 500 Tech Sector")]),
+            "nvda": ("NVDA", "NVIDIA Corp", "NVD.DE", "NVIDIA Corp", [("SMH", "VanEck Semiconductor ETF"), ("QDVE.DE", "iShares S&P 500 Tech Sector")]),
+            "apple": ("AAPL", "Apple Inc", "APC.DE", "Apple Inc", [("XLK", "Technology Select Sector SPDR"), ("QDVE.DE", "iShares S&P 500 Tech Sector")]),
+            "aapl": ("AAPL", "Apple Inc", "APC.DE", "Apple Inc", [("XLK", "Technology Select Sector SPDR"), ("QDVE.DE", "iShares S&P 500 Tech Sector")]),
+            "microsoft": ("MSFT", "Microsoft Corp", "MSF.DE", "Microsoft Corp", [("XLK", "Technology Select Sector SPDR"), ("QDVE.DE", "iShares S&P 500 Tech Sector")]),
+            "msft": ("MSFT", "Microsoft Corp", "MSF.DE", "Microsoft Corp", [("XLK", "Technology Select Sector SPDR"), ("QDVE.DE", "iShares S&P 500 Tech Sector")]),
+            "amazon": ("AMZN", "Amazon.com Inc", "AMZ.DE", "Amazon.com Inc", [("XLY", "Consumer Discretionary Select Sector")]),
+            "amzn": ("AMZN", "Amazon.com Inc", "AMZ.DE", "Amazon.com Inc", [("XLY", "Consumer Discretionary Select Sector")]),
+            "meta": ("META", "Meta Platforms Inc", "FB2A.DE", "Meta Platforms Inc", [("XLC", "Communication Services Select Sector")]),
+            "facebook": ("META", "Meta Platforms Inc", "FB2A.DE", "Meta Platforms Inc", [("XLC", "Communication Services Select Sector")]),
+            "google": ("GOOGL", "Alphabet Inc", "ABEA.DE", "Alphabet Inc", [("XLC", "Communication Services Select Sector")]),
+            "alphabet": ("GOOGL", "Alphabet Inc", "ABEA.DE", "Alphabet Inc", [("XLC", "Communication Services Select Sector")]),
+            "tesla": ("TSLA", "Tesla Inc", "TL0.DE", "Tesla Inc", [("XLY", "Consumer Discretionary Select Sector")]),
+            "tsla": ("TSLA", "Tesla Inc", "TL0.DE", "Tesla Inc", [("XLY", "Consumer Discretionary Select Sector")]),
+            "netflix": ("NFLX", "Netflix Inc", "NFC.DE", "Netflix Inc", [("XLC", "Communication Services Select Sector")]),
+            "nflx": ("NFLX", "Netflix Inc", "NFC.DE", "Netflix Inc", [("XLC", "Communication Services Select Sector")]),
+            "cd projekt": ("CDR.WA", "CD Projekt SA", "2CD.DE", "CD Projekt SA", [("ETFW20L.WA", "Beta ETF WIG20TR")]),
+            "cdr": ("CDR.WA", "CD Projekt SA", "2CD.DE", "CD Projekt SA", [("ETFW20L.WA", "Beta ETF WIG20TR")]),
+            "orlen": ("PKN.WA", "ORLEN SA", "PKN.DE", "ORLEN SA", [("ETFW20L.WA", "Beta ETF WIG20TR")]),
+            "dino": ("DNP.WA", "Dino Polska SA", "DNP.DE", "Dino Polska SA", [("ETFW20L.WA", "Beta ETF WIG20TR")])
         }
 
     def get_data(self, ticker: str, period: str, interval: str = "1d") -> pd.DataFrame:
@@ -46,21 +60,14 @@ class FinancialEngine:
             if hist.empty:
                 return pd.DataFrame()
                 
-            # Wyciągnięcie samej ceny zamknięcia
             df = pd.DataFrame(hist['Close'])
+            df = df.dropna()
+            df = df.sort_index()
             
-            # ==========================================
-            # 🛡️ FILTRY NAPRAWCZE DLA WYKRESÓW INTRADAY
-            # ==========================================
-            df = df.dropna()  # Usuwa luki z pustymi danymi (NaN)
-            df = df.sort_index()  # Wymusza absolutną chronologię (Naprawia cofające się linie!)
-            
-            # Matplotlib ma problemy ze strefami czasowymi (UTC/EST) - ujednolicamy czas
             if df.index.tzinfo is not None:
                 df.index = df.index.tz_localize(None)
                 
             return df
-            
         except Exception:
             return pd.DataFrame()
 
@@ -77,7 +84,7 @@ class FinancialEngine:
         
         return annual_return, annual_volatility, sharpe
 
-st.set_page_config(page_title="Globalny Analizator ETF v12", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Terminal XTB Pro v13", layout="wide", page_icon="📈")
 
 st.markdown("""
     <style>
@@ -109,13 +116,12 @@ sns.set_theme(style="darkgrid", rc={
 st.title("📈 Interaktywny Dashboard Finansowy i Analiza Ryzyka")
 st.caption("Zaawansowane mapowanie rynkowe | Analiza portfelowa | Terminal Styl XTB")
 
-if 'engine' not in st.session_state:
-    st.session_state.engine = FinancialEngine()
+st.session_state.engine = FinancialEngine()
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = {
-        "SPY": Asset("SPY", "SPY - SPDR S&P 500 ETF Trust (Rynek USA)", "ETF"),
-        "QQQ": Asset("QQQ", "QQQ - Invesco QQQ Trust Nasdaq 100 (Rynek USA)", "ETF"),
-        "EUNL.DE": Asset("EUNL.DE", "EUNL.DE - iShares Core MSCI World (Europa)", "ETF")
+        "SPY": Asset("SPY", format_xtb("SPY", "SPDR S&P 500 ETF Trust"), "ETF"),
+        "QQQ": Asset("QQQ", format_xtb("QQQ", "Invesco QQQ Trust Nasdaq 100"), "ETF"),
+        "EUNL.DE": Asset("EUNL.DE", format_xtb("EUNL.DE", "iShares Core MSCI World"), "ETF")
     }
 
 with st.sidebar:
@@ -125,10 +131,12 @@ with st.sidebar:
         matched_key = next((key for key in st.session_state.engine.market_map.keys() if key in search_query), None)
         if matched_key:
             t_usa, name_usa, t_eu, name_eu, etfs = st.session_state.engine.market_map[matched_key]
-            st.session_state.portfolio[t_usa] = Asset(t_usa, f"{t_usa} - {name_usa} (USA)", "Akcja")
-            st.session_state.portfolio[t_eu] = Asset(t_eu, f"{t_eu} - {name_usa} (Europa)", "Akcja")
-            for etf_ticker, weight in etfs:
-                st.session_state.portfolio[etf_ticker] = Asset(etf_ticker, f"{etf_ticker} - ETF (Udział: {weight})", "ETF")
+            
+            st.session_state.portfolio[t_usa] = Asset(t_usa, format_xtb(t_usa, name_usa), "Akcja")
+            st.session_state.portfolio[t_eu] = Asset(t_eu, format_xtb(t_eu, name_eu), "Akcja")
+            for etf_ticker, etf_name in etfs:
+                st.session_state.portfolio[etf_ticker] = Asset(etf_ticker, format_xtb(etf_ticker, etf_name), "ETF")
+                
             st.success(f"✅ Dodano powiązania dla: {name_usa}")
 
     st.divider()
@@ -149,23 +157,11 @@ display_options = {t: st.session_state.portfolio[t].name for t in ticker_options
 st.markdown("<div style='margin-bottom: -15px; font-weight: bold; color: #94a3b8; font-size: 0.95rem;'>⏳ HORYZONT CZASOWY (ZAKRESY XTB):</div>", unsafe_allow_html=True)
 
 xtb_opts = {
-    "1D": "1d",
-    "1W": "5d",
-    "1M": "1mo",
-    "3M": "3mo",
-    "6M": "6mo",
-    "YTD": "ytd",
-    "1Y": "1y",
-    "3Y": "3y",
-    "5Y": "5y",
-    "MAX": "max"
+    "1D": "1d", "1W": "5d", "1M": "1mo", "3M": "3mo", "6M": "6mo",
+    "YTD": "ytd", "1Y": "1y", "3Y": "3y", "5Y": "5y", "MAX": "max"
 }
 
-selected_period_label = st.radio(
-    "Okres:",
-    options=list(xtb_opts.keys()),
-    horizontal=True
-)
+selected_period_label = st.radio("Okres:", options=list(xtb_opts.keys()), horizontal=True)
 selected_period = xtb_opts[selected_period_label]
 
 st.divider()
@@ -183,7 +179,7 @@ with tab1:
             )
             
         if data.empty or len(data) < 2:
-            st.error(f"⚠️ Konflikt limitów API Yahoo Finance. Żądasz zbyt szczegółowych danych (np. 1 minuta) dla długiego okresu (powyżej 7 dni) lub rynki były zamknięte. Zmień interwał w panelu bocznym na '1 Dzień'.")
+            st.error(f"⚠️ Konflikt limitów API. Brak wystarczających danych dla interwału '{selected_interval_label}' w okresie '{selected_period_label}'. Zmień parametry w menu po lewej stronie.")
         else:
             ann_ret, ann_vol, sharpe = st.session_state.engine.calculate_metrics(data)
             total_return = data['Cumulative_Return'].iloc[-1] * 100
@@ -198,22 +194,22 @@ with tab1:
             fig.patch.set_facecolor('#0b0f17')
             
             axes[0, 0].plot(data.index, data['Close'], color='#3b82f6', linewidth=2)
-            axes[0, 0].set_title(f"Kurs Historyczny: {asset.ticker} (Okres: {selected_period_label})", color='#f8fafc')
+            axes[0, 0].set_title(f"Kurs Historyczny: {asset.name} (Okres: {selected_period_label})", color='#f8fafc', fontsize=10)
             
             sns.histplot(ax=axes[0, 1], data=data['Daily_Return'].dropna(), kde=True, color="#8b5cf6", bins=30)
-            axes[0, 1].set_title("Rozkład wahań w wybranym interwale", color='#f8fafc')
+            axes[0, 1].set_title("Rozkład wahań w wybranym interwale", color='#f8fafc', fontsize=10)
             
             axes[1, 0].plot(data.index, data['Cumulative_Return'] * 100, color='#10b981', linewidth=2)
-            axes[1, 0].set_title("Skumulowany zysk (%)", color='#f8fafc')
+            axes[1, 0].set_title("Skumulowany zysk (%)", color='#f8fafc', fontsize=10)
             
             sns.boxplot(ax=axes[1, 1], x=data['Daily_Return'].dropna(), color="#f59e0b")
-            axes[1, 1].set_title("Boxplot zmienności", color='#f8fafc')
+            axes[1, 1].set_title("Boxplot zmienności", color='#f8fafc', fontsize=10)
             
             for ax in axes.flat:
                 ax.set_facecolor('#111827')
                 ax.xaxis.label.set_color('#94a3b8')
                 ax.yaxis.label.set_color('#94a3b8')
-                ax.tick_params(colors='#94a3b8')
+                ax.tick_params(colors='#94a3b8', labelsize=8)
             
             plt.tight_layout()
             st.pyplot(fig)
@@ -246,17 +242,18 @@ with tab2:
                     total_return = df['Cumulative_Return'].iloc[-1] * 100
                     
                     color = palette[idx % len(palette)]
-                    ax_comp.plot(df.index, df['Cumulative_Return'] * 100, label=f"{t}", linewidth=2, color=color)
+                    asset_display_name = st.session_state.portfolio[t].name
+                    ax_comp.plot(df.index, df['Cumulative_Return'] * 100, label=asset_display_name, linewidth=2, color=color)
                     
                     comparison_rows.append({
-                        "Ticker": t,
+                        "Instrument (XTB Format)": asset_display_name,
                         "Zysk (%)": round(total_return, 2),
                         "Punkty pomiarowe": len(df),
                         "Zmienność (%)": round(ann_vol * 100, 2),
                         "Wskaźnik Sharpe'a": round(sharpe, 2)
                     })
                 elif len(df) < 2:
-                    st.warning(f"⚠️ Zignorowano '{t}' z powodu limitów interwału.")
+                    st.warning(f"⚠️ Zignorowano '{st.session_state.portfolio[t].name}' z powodu limitów interwału.")
             
             if comparison_rows:
                 ax_comp.set_title(f"Porównanie skumulowanego zysku (%) | Okres: {selected_period_label}", fontsize=12, fontweight='bold', color='#f8fafc')
@@ -264,10 +261,10 @@ with tab2:
                 ax_comp.set_xlabel("Czas", color='#94a3b8')
                 ax_comp.tick_params(colors='#94a3b8')
                 legend = ax_comp.legend(loc="upper left", facecolor='#111827', edgecolor='#1f2937')
-                plt.setp(legend.get_texts(), color='#f8fafc')
+                plt.setp(legend.get_texts(), color='#f8fafc', fontsize=9)
                 st.pyplot(fig_comp)
                 
-                comp_df = pd.DataFrame(comparison_rows).set_index("Ticker")
+                comp_df = pd.DataFrame(comparison_rows).set_index("Instrument (XTB Format)")
                 st.markdown("#### 📊 Porównawcze zestawienie liczbowe")
                 st.dataframe(comp_df, use_container_width=True)
                 
@@ -275,11 +272,11 @@ with tab2:
                 best_by_sharpe = max(comparison_rows, key=lambda x: x["Wskaźnik Sharpe'a"])
                 best_by_return = max(comparison_rows, key=lambda x: x["Zysk (%)"])
                 
-                if best_by_sharpe["Ticker"] == best_by_return["Ticker"]:
-                    st.success(f"🏆 **Zdecydowany faworyt:** Teoretycznie najbardziej opłacalną inwestycją w okresie **{selected_period_label}** jest **{best_by_sharpe['Ticker']}**. Instrument ten osiągnął zarówno najwyższy całkowity zwrot ({best_by_sharpe['Zysk (%)']}%), jak i najwyższą efektywność (Wskaźnik Sharpe'a: {best_by_sharpe['Wskaźnik Sharpe\'a']}).")
+                if best_by_sharpe["Instrument (XTB Format)"] == best_by_return["Instrument (XTB Format)"]:
+                    st.success(f"🏆 **Zdecydowany faworyt:** Najbardziej opłacalną inwestycją w okresie **{selected_period_label}** był instrument **{best_by_sharpe['Instrument (XTB Format)']}**. Osiągnął najwyższy zwrot ({best_by_sharpe['Zysk (%)']}%) przy najlepszym stosunku zysku do ryzyka (Sharpe: {best_by_sharpe['Wskaźnik Sharpe\'a']}).")
                 else:
-                    st.info(f"⚖️ **Werdykt zależny od strategii:**\n\n"
-                            f"* **Dla zwrotu absolutnego:** Najbardziej opłacił się **{best_by_return['Ticker']}** z zyskiem na poziomie **{best_by_return['Zysk (%)']}%**.\n"
-                            f"* **Dla optymalnego ryzyka:** Najbardziej efektywny jest **{best_by_sharpe['Ticker']}** (Wskaźnik Sharpe'a: **{best_by_sharpe['Wskaźnik Sharpe\'a']}**), ponieważ generuje najlepszy stosunek zysku do wahań kursu.")
+                    st.info(f"⚖️ **Werdykt zależny od profilu ryzyka:**\n\n"
+                            f"* **Maksymalny zysk absolutny:** Najlepiej poradził sobie instrument **{best_by_return['Instrument (XTB Format)']}** ({best_by_return['Zysk (%)']}%).\n"
+                            f"* **Optymalne bezpieczeństwo (Zysk/Ryzyko):** Najstabilniejszy okazał się **{best_by_sharpe['Instrument (XTB Format)']}** (Sharpe: **{best_by_sharpe['Wskaźnik Sharpe\'a']}**).")
             else:
-                st.error("Brak danych do wyświetlenia.")
+                st.error("Brak danych do wyświetlenia po nałożeniu filtrów czasowych.")
